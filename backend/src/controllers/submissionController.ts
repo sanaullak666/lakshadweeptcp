@@ -11,7 +11,6 @@ import { createZipArchive } from '../services/zipService';
 import { sendConfirmationEmail } from '../services/emailService';
 
 export async function createSubmission(req: Request, res: Response) {
-  const connection = await pool.getConnection();
   let normalizedPhone = '';
   let normalizedEmail = '';
 
@@ -45,7 +44,7 @@ export async function createSubmission(req: Request, res: Response) {
     }
 
     const [existingByPhone]: any = await pool.query(
-      'SELECT submission_id, full_name, submission_date FROM submissions WHERE REPLACE(REPLACE(phone, " ", ""), "-", "") = ? OR phone = ? ORDER BY id ASC LIMIT 1',
+      `SELECT submission_id, full_name, submission_date FROM submissions WHERE REPLACE(REPLACE(phone, ' ', ''), '-', '') = ? OR phone = ? ORDER BY id ASC LIMIT 1`,
       [normalizedPhone, normalizedPhone]
     );
 
@@ -155,7 +154,6 @@ export async function createSubmission(req: Request, res: Response) {
     );
 
     if (templates1.length === 0 || templates2.length === 0 || templates3.length === 0) {
-      connection.release();
       return res.status(500).json({
         success: false,
         message: 'Active objection letter templates not found. Please contact administrator.'
@@ -167,7 +165,7 @@ export async function createSubmission(req: Request, res: Response) {
     const tmpl3 = templates3[0];
 
     // 2. Generate Submission ID (atomic PostgreSQL sequence) and Access Token
-    const submissionId = await generateSubmissionId(connection);
+    const submissionId = await generateSubmissionId();
     const accessToken = generateAccessToken();
 
     // 3. Prepare replacement data
@@ -215,6 +213,7 @@ export async function createSubmission(req: Request, res: Response) {
     const clientIp = req.ip || req.socket.remoteAddress || null;
     const userAgent = req.headers['user-agent'] || null;
 
+    const connection = await pool.getConnection();
     let transactionCommitted = false;
     try {
       await connection.beginTransaction();
@@ -268,6 +267,11 @@ export async function createSubmission(req: Request, res: Response) {
       // Commit and release connection immediately
       await connection.commit();
       transactionCommitted = true;
+    } catch (txErr) {
+      if (!transactionCommitted) {
+        try { await connection.rollback(); } catch {}
+      }
+      throw txErr;
     } finally {
       connection.release();
     }
@@ -357,13 +361,6 @@ export async function createSubmission(req: Request, res: Response) {
     });
 
   } catch (error: any) {
-    try {
-      await connection.rollback();
-    } catch {}
-    try {
-      connection.release();
-    } catch {}
-
     console.error('[createSubmission Error]:', error);
 
     // If duplicate key error hit during race condition
@@ -387,7 +384,7 @@ export async function createSubmission(req: Request, res: Response) {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to process objection submission. Please try again.',
+      message: error.message || 'Failed to process objection submission. Please try again.',
       error: error.message
     });
   }
@@ -804,7 +801,7 @@ export async function checkDuplicateApplicant(req: Request, res: Response) {
     // 1. Check Phone (if provided)
     if (normalizedPhone) {
       const [phoneRows]: any = await pool.query(
-        'SELECT submission_id, full_name, submission_date FROM submissions WHERE REPLACE(REPLACE(phone, " ", ""), "-", "") = ? OR phone = ? ORDER BY id ASC LIMIT 1',
+        `SELECT submission_id, full_name, submission_date FROM submissions WHERE REPLACE(REPLACE(phone, ' ', ''), '-', '') = ? OR phone = ? ORDER BY id ASC LIMIT 1`,
         [normalizedPhone, normalizedPhone]
       );
 
