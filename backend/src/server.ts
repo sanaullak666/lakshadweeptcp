@@ -86,10 +86,25 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-// Start Server and Initialize Database
+// Serverless database initialization middleware
+let isDbInitialized = false;
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  if (!isDbInitialized) {
+    try {
+      await initializeDatabase();
+      isDbInitialized = true;
+    } catch (error) {
+      console.error('[DB Init Error in Serverless]:', error);
+    }
+  }
+  next();
+});
+
+// Start Server and Initialize Database (for traditional long-running instances)
 async function startServer() {
   try {
     await initializeDatabase();
+    isDbInitialized = true;
     app.listen(PORT, () => {
       console.log(`[Server] Lakshadweep Objections Backend running on http://localhost:${PORT}`);
     });
@@ -99,4 +114,9 @@ async function startServer() {
   }
 }
 
-startServer();
+if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  startServer();
+}
+
+export { app, startServer };
+export default app;
