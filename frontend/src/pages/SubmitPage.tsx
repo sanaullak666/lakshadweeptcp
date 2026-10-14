@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { SignatureCapture } from '../components/SignatureCapture';
 import { ApplicantFormData, ISLANDS_LIST, IslandType, RelationshipType } from '../types';
-import { submitObjections, getPublicSettings, checkEmailExists } from '../services/api';
+import { submitObjections, getPublicSettings, checkApplicantDuplicate } from '../services/api';
 
 export const SubmitPage: React.FC = () => {
   const navigate = useNavigate();
@@ -58,8 +58,8 @@ export const SubmitPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string>('');
-  const [isCheckingEmail, setIsCheckingEmail] = useState<boolean>(false);
-  const [duplicateEmailInfo, setDuplicateEmailInfo] = useState<{ exists: boolean; message?: string; submissionId?: string } | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState<boolean>(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<{ exists: boolean; field?: 'phone' | 'email'; message?: string; submissionId?: string } | null>(null);
 
   // Generate unique idempotency key once on component load
   useEffect(() => {
@@ -76,27 +76,51 @@ export const SubmitPage: React.FC = () => {
       .catch(() => {});
   }, []);
 
-  // Check email on blur
-  const handleEmailBlur = async () => {
-    const emailVal = formData.email.trim();
-    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) return;
+  // Check duplicate on phone blur
+  const handlePhoneBlur = async () => {
+    const cleanPhone = formData.phone.replace(/\D/g, '').trim();
+    if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) return;
 
-    setIsCheckingEmail(true);
+    setIsCheckingDuplicate(true);
     try {
-      const res = await checkEmailExists(emailVal);
+      const res = await checkApplicantDuplicate(cleanPhone, '');
       if (res.exists) {
-        setDuplicateEmailInfo(res);
+        setDuplicateInfo(res);
         setErrors(prev => ({
           ...prev,
-          email: res.message || 'This email address has already submitted an objection. Duplicate entries are not allowed.'
+          phone: res.message || 'This mobile number has already submitted an objection. Duplicate entries are not allowed.'
         }));
-      } else {
-        setDuplicateEmailInfo(null);
+      } else if (duplicateInfo?.field === 'phone') {
+        setDuplicateInfo(null);
       }
     } catch {
       // Ignore background check failure
     } finally {
-      setIsCheckingEmail(false);
+      setIsCheckingDuplicate(false);
+    }
+  };
+
+  // Check duplicate on email blur (if email is entered)
+  const handleEmailBlur = async () => {
+    const emailVal = formData.email.trim();
+    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) return;
+
+    setIsCheckingDuplicate(true);
+    try {
+      const res = await checkApplicantDuplicate('', emailVal);
+      if (res.exists) {
+        setDuplicateInfo(res);
+        setErrors(prev => ({
+          ...prev,
+          email: res.message || 'This email address has already submitted an objection. Duplicate entries are not allowed.'
+        }));
+      } else if (duplicateInfo?.field === 'email') {
+        setDuplicateInfo(null);
+      }
+    } catch {
+      // Ignore background check failure
+    } finally {
+      setIsCheckingDuplicate(false);
     }
   };
 
@@ -124,15 +148,16 @@ export const SubmitPage: React.FC = () => {
       errs.pinCode = 'Must be a 6-digit PIN code (e.g. 682555)';
     }
 
-    if (!formData.email.trim()) {
-      errs.email = 'Email address is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+    // Email is OPTIONAL: only validate format if provided
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       errs.email = 'Please enter a valid email address';
     }
 
-    if (!formData.phone.trim()) {
+    // Phone is MANDATORY
+    const cleanPhone = formData.phone.replace(/\D/g, '').trim();
+    if (!cleanPhone) {
       errs.phone = 'Mobile number is required';
-    } else if (!/^[6-9]\d{9}$/.test(formData.phone.trim())) {
+    } else if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       errs.phone = 'Please enter a valid 10-digit Indian mobile number';
     }
 
@@ -174,23 +199,30 @@ export const SubmitPage: React.FC = () => {
     if (currentStep === 1) {
       if (!validateStep1()) return;
 
-      // Verify email duplicate before advancing
-      setIsCheckingEmail(true);
+      // Verify phone and (if provided) email duplicate before advancing
+      setIsCheckingDuplicate(true);
       try {
-        const res = await checkEmailExists(formData.email);
+        const res = await checkApplicantDuplicate(formData.phone, formData.email);
         if (res.exists) {
-          setDuplicateEmailInfo(res);
-          setErrors(prev => ({
-            ...prev,
-            email: res.message || 'This email address has already submitted an objection. Duplicate entries are not allowed.'
-          }));
-          setIsCheckingEmail(false);
+          setDuplicateInfo(res);
+          if (res.field === 'phone') {
+            setErrors(prev => ({
+              ...prev,
+              phone: res.message || 'This mobile number has already submitted an objection. Duplicate entries are not allowed.'
+            }));
+          } else {
+            setErrors(prev => ({
+              ...prev,
+              email: res.message || 'This email address has already submitted an objection. Duplicate entries are not allowed.'
+            }));
+          }
+          setIsCheckingDuplicate(false);
           return;
         }
       } catch {
         // Proceed on network error, backend will catch during final submission
       } finally {
-        setIsCheckingEmail(false);
+        setIsCheckingDuplicate(false);
       }
 
       setCurrentStep(2);
@@ -414,43 +446,80 @@ export const SubmitPage: React.FC = () => {
 
               {/* Mobile Number */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Mobile Number <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Mobile Number <span className="text-red-500">*</span>
+                  </label>
+                  {isCheckingDuplicate && (
+                    <span className="text-[11px] text-gov-blue flex items-center gap-1 font-medium">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Verifying...
+                    </span>
+                  )}
+                </div>
                 <input
                   type="tel"
                   maxLength={10}
                   placeholder="10-digit mobile number"
                   value={formData.phone}
-                  onChange={e => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
+                  onBlur={handlePhoneBlur}
+                  onChange={e => {
+                    const cleaned = e.target.value.replace(/\D/g, '');
+                    setFormData({ ...formData, phone: cleaned });
+                    if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
+                    if (duplicateInfo?.field === 'phone') setDuplicateInfo(null);
+                  }}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue ${
                     errors.phone ? 'border-red-400 bg-red-50/30' : 'border-slate-300'
                   }`}
                 />
-                {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+                {errors.phone && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold text-red-800">Duplicate Submission Detected</p>
+                      <p>{errors.phone}</p>
+                      {duplicateInfo?.field === 'phone' && duplicateInfo?.submissionId && (
+                        <p className="pt-1 text-slate-700">
+                          Previous Submission Reference ID: <span className="font-mono font-bold text-slate-900">{duplicateInfo.submissionId}</span>.{' '}
+                          <Link
+                            to={`/track?id=${duplicateInfo.submissionId}`}
+                            className="text-gov-blue font-semibold underline hover:text-blue-800"
+                          >
+                            Track your submission status &rarr;
+                          </Link>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {!errors.phone && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    10-digit mobile number. Each mobile number can only submit once.
+                  </p>
+                )}
               </div>
 
-              {/* Email Address */}
-              <div className="md:col-span-2">
+              {/* Email Address (OPTIONAL) */}
+              <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Email Address <span className="text-red-500">*</span>
+                    Email Address <span className="text-slate-400 font-normal">(Optional)</span>
                   </label>
-                  {isCheckingEmail && (
+                  {isCheckingDuplicate && (
                     <span className="text-[11px] text-gov-blue flex items-center gap-1 font-medium">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Verifying email...
+                      <Loader2 className="w-3 h-3 animate-spin" /> Verifying...
                     </span>
                   )}
                 </div>
                 <input
                   type="email"
-                  placeholder="e.g. applicant@example.com"
+                  placeholder="e.g. applicant@example.com (optional)"
                   value={formData.email}
                   onBlur={handleEmailBlur}
                   onChange={e => {
                     setFormData({ ...formData, email: e.target.value });
                     if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
-                    if (duplicateEmailInfo) setDuplicateEmailInfo(null);
+                    if (duplicateInfo?.field === 'email') setDuplicateInfo(null);
                   }}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue ${
                     errors.email ? 'border-red-400 bg-red-50/30' : 'border-slate-300'
@@ -462,11 +531,11 @@ export const SubmitPage: React.FC = () => {
                     <div className="space-y-1">
                       <p className="font-bold text-red-800">Duplicate Submission Detected</p>
                       <p>{errors.email}</p>
-                      {duplicateEmailInfo?.submissionId && (
+                      {duplicateInfo?.field === 'email' && duplicateInfo?.submissionId && (
                         <p className="pt-1 text-slate-700">
-                          Previous Submission Reference ID: <span className="font-mono font-bold text-slate-900">{duplicateEmailInfo.submissionId}</span>.{' '}
+                          Previous Submission Reference ID: <span className="font-mono font-bold text-slate-900">{duplicateInfo.submissionId}</span>.{' '}
                           <Link
-                            to={`/track?id=${duplicateEmailInfo.submissionId}`}
+                            to={`/track?id=${duplicateInfo.submissionId}`}
                             className="text-gov-blue font-semibold underline hover:text-blue-800"
                           >
                             Track your submission status &rarr;
@@ -478,7 +547,7 @@ export const SubmitPage: React.FC = () => {
                 )}
                 {!errors.email && (
                   <p className="text-[11px] text-slate-400 mt-1">
-                    We will send your submission confirmation and document download links to this email. Each email can only submit once.
+                    Optional. If provided, submission confirmation and document download links will be sent here.
                   </p>
                 )}
               </div>

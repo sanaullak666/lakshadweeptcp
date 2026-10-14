@@ -333,7 +333,11 @@ export const ConfirmationPage: React.FC = () => {
           <span>Statutory Acknowledgment</span>
         </div>
         <p>
-          A copy of your submission acknowledgment has been sent to <strong>{applicant.email}</strong>.
+          {applicant.email ? (
+            <>A copy of your submission acknowledgment has been sent to <strong>{applicant.email}</strong>.{' '}</>
+          ) : (
+            <>Your submission acknowledgment has been successfully registered with mobile number <strong>{applicant.phone}</strong>.{' '}</>
+          )}
           You can track this submission at any time using your Submission ID <strong>{submissionId}</strong>.
         </p>
         <div className="pt-2">

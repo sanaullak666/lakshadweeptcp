@@ -38,7 +38,7 @@ export async function initializeDatabase() {
           house_name VARCHAR(255) NOT NULL,
           island VARCHAR(100) NOT NULL,
           pin_code VARCHAR(20) NOT NULL,
-          email VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NULL,
           phone VARCHAR(30) NOT NULL,
           place VARCHAR(100) NOT NULL,
           submission_date VARCHAR(50) NOT NULL,
@@ -54,6 +54,7 @@ export async function initializeDatabase() {
         CREATE INDEX IF NOT EXISTS idx_status ON submissions(status);
         CREATE INDEX IF NOT EXISTS idx_created_at ON submissions(created_at);
         CREATE INDEX IF NOT EXISTS idx_submissions_email ON submissions(LOWER(TRIM(email)));
+        CREATE INDEX IF NOT EXISTS idx_submissions_phone ON submissions(phone);
 
         CREATE TABLE IF NOT EXISTS signatures (
           id SERIAL PRIMARY KEY,

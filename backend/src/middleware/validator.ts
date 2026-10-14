@@ -26,8 +26,13 @@ export const submissionSchema = z.object({
     errorMap: () => ({ message: 'Please select a valid island from the Union Territory of Lakshadweep' })
   }),
   pinCode: z.string().regex(/^\d{6}$/, 'PIN Code must be a 6-digit number (e.g. 682555)'),
-  email: z.string().email('Please enter a valid email address'),
-  phone: z.string().regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit Indian mobile number'),
+  email: z
+    .string()
+    .optional()
+    .refine(val => !val || !val.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()), {
+      message: 'Please enter a valid email address'
+    }),
+  phone: z.string().trim().regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit Indian mobile number'),
   place: z.string().min(1, 'Place of signing is required'),
   date: z.string().regex(/^\d{2}\.\d{2}\.\d{4}$/, 'Date must be formatted as DD.MM.YYYY'),
   signatureType: z.enum(['drawn', 'uploaded']),

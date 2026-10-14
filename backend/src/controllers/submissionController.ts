@@ -30,34 +30,58 @@ export async function createSubmission(req: Request, res: Response) {
       idempotencyKey
     } = req.body;
 
-    // Check duplicate email to disallow duplicate entries
-    const normalizedEmail = (email || '').trim().toLowerCase();
-    if (!normalizedEmail) {
+    // 1. Mandatory Mobile Number validation and duplicate check
+    const normalizedPhone = (phone || '').replace(/\D/g, '').trim();
+    if (!normalizedPhone || !/^[6-9]\d{9}$/.test(normalizedPhone)) {
       if (req.file && fs.existsSync(req.file.path)) {
         try { fs.unlinkSync(req.file.path); } catch {}
       }
       return res.status(400).json({
         success: false,
-        message: 'A valid email address is required.'
+        message: 'A valid 10-digit Indian mobile number is required.'
       });
     }
 
-    const [existingSubmissions]: any = await pool.query(
-      'SELECT submission_id, full_name, submission_date FROM submissions WHERE LOWER(TRIM(email)) = ? ORDER BY id ASC LIMIT 1',
-      [normalizedEmail]
+    const [existingByPhone]: any = await pool.query(
+      'SELECT submission_id, full_name, submission_date FROM submissions WHERE REPLACE(REPLACE(phone, " ", ""), "-", "") = ? OR phone = ? ORDER BY id ASC LIMIT 1',
+      [normalizedPhone, normalizedPhone]
     );
 
-    if (existingSubmissions && existingSubmissions.length > 0) {
+    if (existingByPhone && existingByPhone.length > 0) {
       if (req.file && fs.existsSync(req.file.path)) {
         try { fs.unlinkSync(req.file.path); } catch {}
       }
       return res.status(409).json({
         success: false,
-        code: 'DUPLICATE_EMAIL',
-        message: `An objection has already been submitted using this email address (${normalizedEmail}). Duplicate entries are not allowed.`,
-        submissionId: existingSubmissions[0].submission_id,
-        submissionDate: existingSubmissions[0].submission_date
+        code: 'DUPLICATE_PHONE',
+        field: 'phone',
+        message: `An objection has already been submitted using this mobile number (${normalizedPhone}). Duplicate entries are not allowed.`,
+        submissionId: existingByPhone[0].submission_id,
+        submissionDate: existingByPhone[0].submission_date
       });
+    }
+
+    // 2. Email is OPTIONAL: but if provided, check for duplicate email
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (normalizedEmail) {
+      const [existingByEmail]: any = await pool.query(
+        'SELECT submission_id, full_name, submission_date FROM submissions WHERE LOWER(TRIM(email)) = ? ORDER BY id ASC LIMIT 1',
+        [normalizedEmail]
+      );
+
+      if (existingByEmail && existingByEmail.length > 0) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch {}
+        }
+        return res.status(409).json({
+          success: false,
+          code: 'DUPLICATE_EMAIL',
+          field: 'email',
+          message: `An objection has already been submitted using this email address (${normalizedEmail}). Duplicate entries are not allowed.`,
+          submissionId: existingByEmail[0].submission_id,
+          submissionDate: existingByEmail[0].submission_date
+        });
+      }
     }
 
     // Check idempotency if key provided
@@ -155,8 +179,8 @@ export async function createSubmission(req: Request, res: Response) {
       houseName,
       island,
       pinCode,
-      email,
-      phone,
+      email: normalizedEmail || 'Nil',
+      phone: normalizedPhone,
       place,
       date,
       signatureHtml
@@ -230,7 +254,7 @@ export async function createSubmission(req: Request, res: Response) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Submitted', ?, ?, ?)
     `, [
       submissionId, accessToken, fullName, relationship, parentSpouseName,
-      houseName, island, pinCode, email, phone, place, date,
+      houseName, island, pinCode, normalizedEmail || null, normalizedPhone, place, date,
       idempotencyKey || null, clientIp, userAgent
     ]);
 
@@ -270,14 +294,16 @@ export async function createSubmission(req: Request, res: Response) {
     // Commit Transaction
     await connection.commit();
 
-    // Trigger async email confirmation (non-blocking)
-    sendConfirmationEmail({
-      toEmail: email,
-      applicantName: fullName,
-      submissionId,
-      submissionDate: date,
-      pdfPaths: [pdfPath1, pdfPath2, pdfPath3]
-    }).catch(err => console.error('[Submission] Email error:', err));
+    // Trigger async email confirmation (non-blocking) only if email provided
+    if (normalizedEmail) {
+      sendConfirmationEmail({
+        toEmail: normalizedEmail,
+        applicantName: fullName,
+        submissionId,
+        submissionDate: date,
+        pdfPaths: [pdfPath1, pdfPath2, pdfPath3]
+      }).catch(err => console.error('[Submission] Email error:', err));
+    }
 
     return res.status(201).json({
       success: true,
@@ -735,44 +761,66 @@ export async function getPublicSettings(_req: Request, res: Response) {
   }
 }
 
-export async function checkEmailAvailability(req: Request, res: Response) {
+export async function checkDuplicateApplicant(req: Request, res: Response) {
   try {
+    const rawPhone = (req.query.phone as string) || '';
     const rawEmail = (req.query.email as string) || '';
+
+    const normalizedPhone = rawPhone.replace(/\D/g, '').trim();
     const normalizedEmail = rawEmail.trim().toLowerCase();
 
-    if (!normalizedEmail) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email parameter is required.'
-      });
+    // 1. Check Phone (if provided)
+    if (normalizedPhone) {
+      const [phoneRows]: any = await pool.query(
+        'SELECT submission_id, full_name, submission_date FROM submissions WHERE REPLACE(REPLACE(phone, " ", ""), "-", "") = ? OR phone = ? ORDER BY id ASC LIMIT 1',
+        [normalizedPhone, normalizedPhone]
+      );
+
+      if (phoneRows && phoneRows.length > 0) {
+        return res.status(200).json({
+          success: true,
+          exists: true,
+          field: 'phone',
+          message: `An objection has already been submitted using this mobile number (${normalizedPhone}). Duplicate entries are not allowed.`,
+          submissionId: phoneRows[0].submission_id,
+          submissionDate: phoneRows[0].submission_date
+        });
+      }
     }
 
-    const [rows]: any = await pool.query(
-      'SELECT submission_id, full_name, submission_date FROM submissions WHERE LOWER(TRIM(email)) = ? ORDER BY id ASC LIMIT 1',
-      [normalizedEmail]
-    );
+    // 2. Check Email (if provided)
+    if (normalizedEmail) {
+      const [emailRows]: any = await pool.query(
+        'SELECT submission_id, full_name, submission_date FROM submissions WHERE LOWER(TRIM(email)) = ? ORDER BY id ASC LIMIT 1',
+        [normalizedEmail]
+      );
 
-    if (rows && rows.length > 0) {
-      return res.status(200).json({
-        success: true,
-        exists: true,
-        message: `An objection has already been submitted using this email address (${normalizedEmail}). Duplicate entries are not allowed.`,
-        submissionId: rows[0].submission_id,
-        submissionDate: rows[0].submission_date
-      });
+      if (emailRows && emailRows.length > 0) {
+        return res.status(200).json({
+          success: true,
+          exists: true,
+          field: 'email',
+          message: `An objection has already been submitted using this email address (${normalizedEmail}). Duplicate entries are not allowed.`,
+          submissionId: emailRows[0].submission_id,
+          submissionDate: emailRows[0].submission_date
+        });
+      }
     }
 
     return res.status(200).json({
       success: true,
       exists: false,
-      message: 'Email is available.'
+      message: 'Available'
     });
   } catch (error: any) {
-    console.error('[Submission] Check email error:', error);
+    console.error('[Submission] Check duplicate error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to verify email availability.'
+      message: 'Failed to verify applicant availability.'
     });
   }
 }
+
+export const checkEmailAvailability = checkDuplicateApplicant;
+
 

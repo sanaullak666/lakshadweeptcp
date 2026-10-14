@@ -88,20 +88,35 @@ export async function getPublicSettings(): Promise<Record<string, string>> {
   }
 }
 
-export async function checkEmailExists(email: string): Promise<{ exists: boolean; message?: string; submissionId?: string }> {
+export async function checkApplicantDuplicate(
+  phone: string,
+  email?: string
+): Promise<{ exists: boolean; field?: 'phone' | 'email'; message?: string; submissionId?: string }> {
   try {
-    const cleanEmail = email.trim();
-    if (!cleanEmail) return { exists: false };
-    const res = await fetch(`${API_BASE}/submissions/check-email?email=${encodeURIComponent(cleanEmail)}`);
+    const cleanPhone = phone.replace(/\D/g, '').trim();
+    const cleanEmail = (email || '').trim();
+
+    if (!cleanPhone && !cleanEmail) return { exists: false };
+
+    const params = new URLSearchParams();
+    if (cleanPhone) params.append('phone', cleanPhone);
+    if (cleanEmail) params.append('email', cleanEmail);
+
+    const res = await fetch(`${API_BASE}/submissions/check-duplicate?${params.toString()}`);
     const data = await parseJson<any>(res);
     return {
       exists: Boolean(data.exists),
+      field: data.field,
       message: data.message,
       submissionId: data.submissionId
     };
   } catch {
     return { exists: false };
   }
+}
+
+export async function checkEmailExists(email: string): Promise<{ exists: boolean; message?: string; submissionId?: string }> {
+  return checkApplicantDuplicate('', email);
 }
 
 export async function getSubmission(id: string, token?: string) {

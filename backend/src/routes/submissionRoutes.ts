@@ -16,6 +16,7 @@ const router = Router();
 
 // Public routes
 router.get('/settings', getPublicSettings);
+router.get('/check-duplicate', checkEmailAvailability);
 router.get('/check-email', checkEmailAvailability);
 
 // Create submission (Single form submission generates TWO objection letters)
