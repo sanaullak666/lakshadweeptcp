@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "clean:db": "node clean_database.js"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",
