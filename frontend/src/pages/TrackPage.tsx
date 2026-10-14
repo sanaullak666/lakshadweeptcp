@@ -53,11 +53,19 @@ export const TrackPage: React.FC = () => {
       const sId = data.submission?.submissionId || data.submissionId || 'Submission';
       await downloadLetterAsPdf(
         l.finalHtml || l.viewUrl,
-        `Objection_Letter_${l.letterNumber}_${sId}_${safeName}.pdf`
+        `Objection_Letter_${l.letterNumber}_${sId}_${safeName}.pdf`,
+        l.downloadUrl
       );
     } catch (err) {
       console.error('Download error:', err);
-      window.open(l.viewUrl, '_blank');
+      if (l.downloadUrl) {
+        const a = document.createElement('a');
+        a.href = l.downloadUrl;
+        a.download = `Objection_Letter_${l.letterNumber}_${data.submissionId || 'Submission'}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     } finally {
       setDownloading(null);
     }

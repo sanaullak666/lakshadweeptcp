@@ -78,11 +78,19 @@ export const ConfirmationPage: React.FC = () => {
       const safeName = (applicant?.fullName || 'Applicant').replace(/[^a-zA-Z0-9_-]/g, '_');
       await downloadLetterAsPdf(
         l.finalHtml || l.viewUrl,
-        `Objection_Letter_${l.letterNumber}_${submissionId}_${safeName}.pdf`
+        `Objection_Letter_${l.letterNumber}_${submissionId}_${safeName}.pdf`,
+        l.downloadUrl
       );
     } catch (err) {
       console.error('Download error:', err);
-      window.open(l.viewUrl, '_blank');
+      if (l.downloadUrl) {
+        const a = document.createElement('a');
+        a.href = l.downloadUrl;
+        a.download = `Objection_Letter_${l.letterNumber}_${submissionId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     } finally {
       setDownloading(null);
     }

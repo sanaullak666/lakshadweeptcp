@@ -6,7 +6,7 @@ import pool from '../config/database';
 import { generateSubmissionId, generateAccessToken, sanitizeFilename } from '../utils/idGenerator';
 import jwt from 'jsonwebtoken';
 import { replacePlaceholders } from '../services/templateService';
-import { generatePdf } from '../services/pdfService';
+import { generatePdf, htmlToPdfBuffer } from '../services/pdfService';
 import { createZipArchive } from '../services/zipService';
 import { sendConfirmationEmail } from '../services/emailService';
 
@@ -548,7 +548,7 @@ export async function getLetterHtml(req: Request, res: Response) {
           <span style="font-family: sans-serif; font-size: 13px; color: #64748b;">Submission ID: <strong>${id}</strong></span>
           <div>
             <button onclick="window.print()" class="btn">🖨️ Print Letter</button>
-            <a href="/api/submissions/${id}/letters/${letterNumber}/download?token=${subs[0].access_token || ''}" class="btn" style="background: #0284c7;">📥 Download PDF</a>
+            <a href="/api/submissions/${id}/letters/${letterNumber}/download?token=${subs[0].access_token || ''}" download class="btn" style="background: #0284c7;">📥 Download PDF</a>
           </div>
         </div>
         <div class="container">
@@ -569,7 +569,8 @@ export async function getLetterHtml(req: Request, res: Response) {
 
 export async function downloadLetterPdf(req: Request, res: Response) {
   try {
-    const { id, letterNumber } = req.params;
+    const id = String(req.params.id);
+    const letterNumber = parseInt(String(req.params.letterNumber), 10);
 
     const [subs]: any = await pool.query('SELECT access_token FROM submissions WHERE submission_id = ?', [id]);
     if (subs.length === 0) {
@@ -608,46 +609,12 @@ export async function downloadLetterPdf(req: Request, res: Response) {
     }
 
     // In serverless environments where Chromium binary is absent or disk is ephemeral:
-    // Serve the official full-content letter styled with A4 margins and auto-trigger native print-to-PDF
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${letter.letter_title} - ${id}</title>
-        <style>
-          @page { size: A4; margin: 25.4mm; }
-          *, *::before, *::after { box-sizing: border-box; }
-          body { font-family: "Times New Roman", Times, Georgia, serif; font-size: 12pt; line-height: 1.35; color: #000; margin: 0; padding: 25.4mm; background: #fff; }
-          .container { max-width: 800px; margin: 0 auto; }
-          table { width: 100%; border-collapse: collapse; margin: 14pt 0; font-size: 10pt; line-height: 1.25; }
-          table th, table td { border: 1px solid #000; padding: 5pt 6pt; text-align: left; vertical-align: top; }
-          table th { font-weight: bold; }
-          .signature-container { height: 55px; max-width: 200px; display: flex; align-items: center; }
-          .signature-container img { max-height: 55px; max-width: 180px; object-fit: contain; }
-          .print-notice { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 12px; margin-bottom: 20px; border-radius: 6px; font-family: sans-serif; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
-          .btn-print { background: #1e40af; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; }
-          @media print { .print-notice { display: none !important; } body { padding: 0; } }
-        </style>
-        <script>
-          window.addEventListener('load', function() {
-            setTimeout(function() { window.print(); }, 250);
-          });
-        </script>
-      </head>
-      <body>
-        <div class="print-notice">
-          <span>📄 <strong>Print to PDF:</strong> Select "Save as PDF" to preserve official formatting.</span>
-          <button onclick="window.print()" class="btn-print">Save as PDF / Print</button>
-        </div>
-        <div class="container">
-          ${letter.final_html}
-        </div>
-      </body>
-      </html>
-    `);
+    // Generate real multi-page A4 PDF binary on the fly using jsPDF engine and stream as application/pdf
+    const pdfBuf = htmlToPdfBuffer(letter.letter_title, letter.final_html);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${defaultFilename}"`);
+    res.setHeader('Content-Length', String(pdfBuf.length));
+    return res.end(pdfBuf);
 
   } catch (err: any) {
     console.error('[downloadLetterPdf Error]:', err);
@@ -657,7 +624,7 @@ export async function downloadLetterPdf(req: Request, res: Response) {
 
 export async function downloadBothLettersZip(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const [subs]: any = await pool.query('SELECT access_token FROM submissions WHERE submission_id = ?', [id]);
     if (subs.length === 0) {
@@ -674,8 +641,12 @@ export async function downloadBothLettersZip(req: Request, res: Response) {
       : path.resolve(__dirname, `../../storage/pdfs/${id}`);
     const zipPath = path.join(pdfDir, `${id}_Objection_Letters.zip`);
 
+    if (!fs.existsSync(pdfDir)) {
+      fs.mkdirSync(pdfDir, { recursive: true });
+    }
+
     const [letters]: any = await pool.query(
-      'SELECT pdf_path, letter_number FROM objection_letters WHERE submission_id = ? ORDER BY letter_number ASC',
+      'SELECT pdf_path, letter_number, letter_title, final_html FROM objection_letters WHERE submission_id = ? ORDER BY letter_number ASC',
       [id]
     );
 
@@ -683,14 +654,25 @@ export async function downloadBothLettersZip(req: Request, res: Response) {
       return res.status(404).json({ success: false, message: 'Objection letters not found' });
     }
 
+    // Ensure all 3 letters exist as valid PDFs on disk
+    for (const l of letters) {
+      const isValid = l.pdf_path && fs.existsSync(l.pdf_path) && fs.statSync(l.pdf_path).size > 2000;
+      if (!isValid) {
+        const filePath = path.join(pdfDir, `${id}_Objection_Letter_${l.letter_number}.pdf`);
+        const pdfBuf = htmlToPdfBuffer(l.letter_title, l.final_html);
+        fs.writeFileSync(filePath, pdfBuf);
+        l.pdf_path = filePath;
+      }
+    }
+
     const zipEntries = letters
-      .filter((l: any) => fs.existsSync(l.pdf_path))
+      .filter((l: any) => l.pdf_path && fs.existsSync(l.pdf_path))
       .map((l: any) => ({
         filePath: l.pdf_path,
         entryName: path.basename(l.pdf_path)
       }));
 
-    if (zipEntries.length > 0 && (!fs.existsSync(zipPath) || zipEntries.length >= 3)) {
+    if (zipEntries.length > 0) {
       await createZipArchive(zipEntries, zipPath);
     }
 
