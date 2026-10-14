@@ -30,6 +30,36 @@ export async function createSubmission(req: Request, res: Response) {
       idempotencyKey
     } = req.body;
 
+    // Check duplicate email to disallow duplicate entries
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+      return res.status(400).json({
+        success: false,
+        message: 'A valid email address is required.'
+      });
+    }
+
+    const [existingSubmissions]: any = await pool.query(
+      'SELECT submission_id, full_name, submission_date FROM submissions WHERE LOWER(TRIM(email)) = ? ORDER BY id ASC LIMIT 1',
+      [normalizedEmail]
+    );
+
+    if (existingSubmissions && existingSubmissions.length > 0) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+      return res.status(409).json({
+        success: false,
+        code: 'DUPLICATE_EMAIL',
+        message: `An objection has already been submitted using this email address (${normalizedEmail}). Duplicate entries are not allowed.`,
+        submissionId: existingSubmissions[0].submission_id,
+        submissionDate: existingSubmissions[0].submission_date
+      });
+    }
+
     // Check idempotency if key provided
     if (idempotencyKey) {
       const [existing]: any = await pool.query(
@@ -704,3 +734,45 @@ export async function getPublicSettings(_req: Request, res: Response) {
     return res.status(500).json({ success: false, message: 'Failed to fetch settings' });
   }
 }
+
+export async function checkEmailAvailability(req: Request, res: Response) {
+  try {
+    const rawEmail = (req.query.email as string) || '';
+    const normalizedEmail = rawEmail.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email parameter is required.'
+      });
+    }
+
+    const [rows]: any = await pool.query(
+      'SELECT submission_id, full_name, submission_date FROM submissions WHERE LOWER(TRIM(email)) = ? ORDER BY id ASC LIMIT 1',
+      [normalizedEmail]
+    );
+
+    if (rows && rows.length > 0) {
+      return res.status(200).json({
+        success: true,
+        exists: true,
+        message: `An objection has already been submitted using this email address (${normalizedEmail}). Duplicate entries are not allowed.`,
+        submissionId: rows[0].submission_id,
+        submissionDate: rows[0].submission_date
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      exists: false,
+      message: 'Email is available.'
+    });
+  } catch (error: any) {
+    console.error('[Submission] Check email error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify email availability.'
+    });
+  }
+}
+

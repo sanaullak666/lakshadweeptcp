@@ -88,6 +88,22 @@ export async function getPublicSettings(): Promise<Record<string, string>> {
   }
 }
 
+export async function checkEmailExists(email: string): Promise<{ exists: boolean; message?: string; submissionId?: string }> {
+  try {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) return { exists: false };
+    const res = await fetch(`${API_BASE}/submissions/check-email?email=${encodeURIComponent(cleanEmail)}`);
+    const data = await parseJson<any>(res);
+    return {
+      exists: Boolean(data.exists),
+      message: data.message,
+      submissionId: data.submissionId
+    };
+  } catch {
+    return { exists: false };
+  }
+}
+
 export async function getSubmission(id: string, token?: string) {
   const url = `${API_BASE}/submissions/${id}${token ? `?token=${token}` : ''}`;
   const res = await fetch(url);

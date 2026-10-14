@@ -53,6 +53,7 @@ export async function initializeDatabase() {
         CREATE INDEX IF NOT EXISTS idx_island ON submissions(island);
         CREATE INDEX IF NOT EXISTS idx_status ON submissions(status);
         CREATE INDEX IF NOT EXISTS idx_created_at ON submissions(created_at);
+        CREATE INDEX IF NOT EXISTS idx_submissions_email ON submissions(LOWER(TRIM(email)));
 
         CREATE TABLE IF NOT EXISTS signatures (
           id SERIAL PRIMARY KEY,

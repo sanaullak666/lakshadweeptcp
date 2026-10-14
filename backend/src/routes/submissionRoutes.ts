@@ -5,7 +5,8 @@ import {
   getLetterHtml,
   downloadLetterPdf,
   downloadBothLettersZip,
-  getPublicSettings
+  getPublicSettings,
+  checkEmailAvailability
 } from '../controllers/submissionController';
 import { signatureUpload } from '../middleware/upload';
 import { submissionLimiter } from '../middleware/rateLimiter';
@@ -15,6 +16,7 @@ const router = Router();
 
 // Public routes
 router.get('/settings', getPublicSettings);
+router.get('/check-email', checkEmailAvailability);
 
 // Create submission (Single form submission generates TWO objection letters)
 router.post(

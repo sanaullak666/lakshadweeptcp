@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   User,
   Home,
@@ -10,13 +10,14 @@ import {
   ArrowRight,
   ArrowLeft,
   AlertTriangle,
+  AlertCircle,
   Loader2,
   CheckCircle,
   Eye
 } from 'lucide-react';
 import { SignatureCapture } from '../components/SignatureCapture';
 import { ApplicantFormData, ISLANDS_LIST, IslandType, RelationshipType } from '../types';
-import { submitObjections, getPublicSettings } from '../services/api';
+import { submitObjections, getPublicSettings, checkEmailExists } from '../services/api';
 
 export const SubmitPage: React.FC = () => {
   const navigate = useNavigate();
@@ -57,6 +58,8 @@ export const SubmitPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string>('');
+  const [isCheckingEmail, setIsCheckingEmail] = useState<boolean>(false);
+  const [duplicateEmailInfo, setDuplicateEmailInfo] = useState<{ exists: boolean; message?: string; submissionId?: string } | null>(null);
 
   // Generate unique idempotency key once on component load
   useEffect(() => {
@@ -72,6 +75,30 @@ export const SubmitPage: React.FC = () => {
       })
       .catch(() => {});
   }, []);
+
+  // Check email on blur
+  const handleEmailBlur = async () => {
+    const emailVal = formData.email.trim();
+    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) return;
+
+    setIsCheckingEmail(true);
+    try {
+      const res = await checkEmailExists(emailVal);
+      if (res.exists) {
+        setDuplicateEmailInfo(res);
+        setErrors(prev => ({
+          ...prev,
+          email: res.message || 'This email address has already submitted an objection. Duplicate entries are not allowed.'
+        }));
+      } else {
+        setDuplicateEmailInfo(null);
+      }
+    } catch {
+      // Ignore background check failure
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
 
   // Update place automatically when island changes if place is empty
   const handleIslandChange = (island: IslandType) => {
@@ -143,10 +170,35 @@ export const SubmitPage: React.FC = () => {
     return Object.keys(errs).length === 0;
   };
 
-  const handleNext = () => {
-    if (currentStep === 1 && validateStep1()) setCurrentStep(2);
-    else if (currentStep === 2 && validateStep2()) setCurrentStep(3);
-    else if (currentStep === 3 && validateStep3()) setCurrentStep(4);
+  const handleNext = async () => {
+    if (currentStep === 1) {
+      if (!validateStep1()) return;
+
+      // Verify email duplicate before advancing
+      setIsCheckingEmail(true);
+      try {
+        const res = await checkEmailExists(formData.email);
+        if (res.exists) {
+          setDuplicateEmailInfo(res);
+          setErrors(prev => ({
+            ...prev,
+            email: res.message || 'This email address has already submitted an objection. Duplicate entries are not allowed.'
+          }));
+          setIsCheckingEmail(false);
+          return;
+        }
+      } catch {
+        // Proceed on network error, backend will catch during final submission
+      } finally {
+        setIsCheckingEmail(false);
+      }
+
+      setCurrentStep(2);
+    } else if (currentStep === 2 && validateStep2()) {
+      setCurrentStep(3);
+    } else if (currentStep === 3 && validateStep3()) {
+      setCurrentStep(4);
+    }
   };
 
   const handleBack = () => {
@@ -380,22 +432,55 @@ export const SubmitPage: React.FC = () => {
 
               {/* Email Address */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  {isCheckingEmail && (
+                    <span className="text-[11px] text-gov-blue flex items-center gap-1 font-medium">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Verifying email...
+                    </span>
+                  )}
+                </div>
                 <input
                   type="email"
                   placeholder="e.g. applicant@example.com"
                   value={formData.email}
-                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  onBlur={handleEmailBlur}
+                  onChange={e => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                    if (duplicateEmailInfo) setDuplicateEmailInfo(null);
+                  }}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue ${
                     errors.email ? 'border-red-400 bg-red-50/30' : 'border-slate-300'
                   }`}
                 />
-                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
-                <p className="text-[11px] text-slate-400 mt-1">
-                  We will send your submission confirmation and document download links to this email.
-                </p>
+                {errors.email && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold text-red-800">Duplicate Submission Detected</p>
+                      <p>{errors.email}</p>
+                      {duplicateEmailInfo?.submissionId && (
+                        <p className="pt-1 text-slate-700">
+                          Previous Submission Reference ID: <span className="font-mono font-bold text-slate-900">{duplicateEmailInfo.submissionId}</span>.{' '}
+                          <Link
+                            to={`/track?id=${duplicateEmailInfo.submissionId}`}
+                            className="text-gov-blue font-semibold underline hover:text-blue-800"
+                          >
+                            Track your submission status &rarr;
+                          </Link>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {!errors.email && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    We will send your submission confirmation and document download links to this email. Each email can only submit once.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -688,9 +773,22 @@ export const SubmitPage: React.FC = () => {
             </div>
 
             {submitError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{submitError}</span>
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-xs space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block text-sm">Submission Blocked</span>
+                    <p className="mt-0.5">{submitError}</p>
+                  </div>
+                </div>
+                {submitError.toLowerCase().includes('already submitted') && (
+                  <div className="pt-2 pl-7 border-t border-red-200/60 flex items-center gap-2">
+                    <span className="text-slate-700">Already submitted your objection?</span>
+                    <Link to="/track" className="underline font-bold text-gov-blue hover:text-blue-800">
+                      Track your status here &rarr;
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>
