@@ -1,10 +1,18 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
-const uploadDir = path.resolve(__dirname, '../../uploads/signatures');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const isServerless = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+const baseUpload = isServerless ? path.join(os.tmpdir(), 'uploads') : path.resolve(__dirname, '../../uploads');
+const uploadDir = path.join(baseUpload, 'signatures');
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Upload] Using fallback tmp storage directory');
 }
 
 const storage = multer.diskStorage({

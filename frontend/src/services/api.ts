@@ -1,6 +1,32 @@
 import { ApplicantFormData, SubmissionResult, SubmissionDetailData, DashboardStats, SubmissionListItem, LetterTemplateItem, AuditLogItem } from '../types';
 
-const API_BASE = '/api';
+function getApiBase(): string {
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  if (!envUrl) return '/api';
+  const trimmed = envUrl.replace(/\/+$/, '');
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
+
+const API_BASE = getApiBase();
+
+async function parseJson<T = any>(res: Response): Promise<T> {
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}: ${res.statusText || 'Unable to connect to backend'}. Please verify backend server is running.`);
+    }
+    throw new Error('Received non-JSON response from server.');
+  }
+
+  if (!res.ok) {
+    throw new Error(data.message || `Request failed with status ${res.status} (${res.statusText})`);
+  }
+
+  return data as T;
+}
 
 export function getAdminToken(): string | null {
   return localStorage.getItem('lakshadweep_admin_token');
@@ -49,28 +75,23 @@ export async function submitObjections(data: ApplicantFormData): Promise<Submiss
     body: formData
   });
 
-  const resJson = await response.json();
-  if (!response.ok) {
-    throw new Error(resJson.message || 'Failed to submit objections');
-  }
-
-  return resJson;
+  return parseJson<SubmissionResult>(response);
 }
 
 export async function getPublicSettings(): Promise<Record<string, string>> {
-  const res = await fetch(`${API_BASE}/submissions/settings`);
-  const data = await res.json();
-  return data.settings || {};
+  try {
+    const res = await fetch(`${API_BASE}/submissions/settings`);
+    const data = await parseJson<any>(res);
+    return data.settings || {};
+  } catch {
+    return {};
+  }
 }
 
 export async function getSubmission(id: string, token?: string) {
   const url = `${API_BASE}/submissions/${id}${token ? `?token=${token}` : ''}`;
   const res = await fetch(url);
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to fetch submission');
-  }
-  return data;
+  return parseJson<any>(res);
 }
 
 // Admin API
@@ -81,12 +102,10 @@ export async function adminLogin(username: string, password: string) {
     body: JSON.stringify({ username, password })
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Login failed');
+  const data = await parseJson<any>(res);
+  if (data.token) {
+    setAdminToken(data.token);
   }
-
-  setAdminToken(data.token);
   return data;
 }
 
@@ -105,10 +124,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const res = await fetch(`${API_BASE}/admin/dashboard-stats`, {
     headers: { ...getAuthHeaders() }
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to fetch dashboard statistics');
-  }
+  const data = await parseJson<any>(res);
   return data.stats;
 }
 
@@ -135,22 +151,14 @@ export async function getSubmissionsList(params: {
   const res = await fetch(`${API_BASE}/admin/submissions?${query.toString()}`, {
     headers: { ...getAuthHeaders() }
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to fetch submissions');
-  }
-  return data;
+  return parseJson<{ submissions: SubmissionListItem[]; pagination: any }>(res);
 }
 
 export async function getSubmissionDetail(id: string): Promise<SubmissionDetailData> {
   const res = await fetch(`${API_BASE}/admin/submissions/${id}`, {
     headers: { ...getAuthHeaders() }
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to fetch submission details');
-  }
-  return data;
+  return parseJson<SubmissionDetailData>(res);
 }
 
 export async function updateSubmissionStatus(id: string, status: string, remarks?: string) {
@@ -162,11 +170,7 @@ export async function updateSubmissionStatus(id: string, status: string, remarks
     },
     body: JSON.stringify({ status, remarks })
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to update status');
-  }
-  return data;
+  return parseJson<any>(res);
 }
 
 export async function addAdminNote(id: string, note: string) {
@@ -178,11 +182,7 @@ export async function addAdminNote(id: string, note: string) {
     },
     body: JSON.stringify({ note })
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to add note');
-  }
-  return data;
+  return parseJson<any>(res);
 }
 
 export function getExportCsvUrl(island?: string, status?: string): string {
@@ -198,10 +198,7 @@ export async function getTemplates(): Promise<LetterTemplateItem[]> {
   const res = await fetch(`${API_BASE}/templates`, {
     headers: { ...getAuthHeaders() }
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to fetch templates');
-  }
+  const data = await parseJson<any>(res);
   return data.templates;
 }
 
@@ -209,10 +206,7 @@ export async function getTemplateById(id: number | string): Promise<LetterTempla
   const res = await fetch(`${API_BASE}/templates/${id}`, {
     headers: { ...getAuthHeaders() }
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to fetch template');
-  }
+  const data = await parseJson<any>(res);
   return data.template;
 }
 
@@ -222,10 +216,7 @@ export async function previewTemplate(contentHtml: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contentHtml })
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to generate preview');
-  }
+  const data = await parseJson<any>(res);
   return data.previewHtml;
 }
 
@@ -247,11 +238,7 @@ export async function createTemplateVersion(payload: {
     },
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to create template version');
-  }
-  return data;
+  return parseJson<any>(res);
 }
 
 export async function activateTemplateVersion(id: number | string) {
@@ -259,22 +246,14 @@ export async function activateTemplateVersion(id: number | string) {
     method: 'POST',
     headers: { ...getAuthHeaders() }
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to activate template');
-  }
-  return data;
+  return parseJson<any>(res);
 }
 
 export async function getAuditLogs(page: number = 1, limit: number = 30): Promise<{ logs: AuditLogItem[]; pagination: any }> {
   const res = await fetch(`${API_BASE}/admin/audit-logs?page=${page}&limit=${limit}`, {
     headers: { ...getAuthHeaders() }
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to fetch audit logs');
-  }
-  return data;
+  return parseJson<{ logs: AuditLogItem[]; pagination: any }>(res);
 }
 
 export async function updateAppSetting(key: string, value: string) {
@@ -286,9 +265,5 @@ export async function updateAppSetting(key: string, value: string) {
     },
     body: JSON.stringify({ key, value })
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to update app setting');
-  }
-  return data;
+  return parseJson<any>(res);
 }

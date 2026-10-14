@@ -11,6 +11,11 @@ async function getBrowser(): Promise<Browser> {
 
   const candidates = [
     process.env.CHROME_PATH,
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/opt/google/chrome/chrome',
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -26,7 +31,7 @@ async function getBrowser(): Promise<Browser> {
   }
 
   if (!executablePath) {
-    throw new Error('No compatible browser executable found for PDF generation');
+    throw new Error('No compatible browser executable found for PDF generation. On cloud hosts like Render, please ensure Chromium is installed or CHROME_PATH is set.');
   }
 
   browserInstance = await puppeteer.launch({

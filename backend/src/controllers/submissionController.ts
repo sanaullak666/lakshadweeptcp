@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import pool from '../config/database';
 import { generateSubmissionId, generateAccessToken, sanitizeFilename } from '../utils/idGenerator';
 import jwt from 'jsonwebtoken';
@@ -128,7 +129,9 @@ export async function createSubmission(req: Request, res: Response) {
     const finalHtml3 = replacePlaceholders(tmpl3.content_html, replacementData);
 
     // 5. Generate PDFs for all three letters
-    const pdfDir = path.resolve(__dirname, `../../storage/pdfs/${submissionId}`);
+    const isServerless = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const baseStorage = isServerless ? path.join(os.tmpdir(), 'pdfs') : path.resolve(__dirname, '../../storage/pdfs');
+    const pdfDir = path.join(baseStorage, submissionId);
     if (!fs.existsSync(pdfDir)) {
       fs.mkdirSync(pdfDir, { recursive: true });
     }
