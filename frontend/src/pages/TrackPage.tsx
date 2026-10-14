@@ -22,7 +22,7 @@ export const TrackPage: React.FC = () => {
 
   const handleTrack = async (searchId: string, tokenVal?: string) => {
     if (!searchId.trim()) {
-      setError('Please enter a valid Submission ID (e.g. LDR-2026-000001)');
+      setError('Please enter a valid Submission ID or registered Mobile Number');
       return;
     }
 
@@ -33,7 +33,7 @@ export const TrackPage: React.FC = () => {
       const res = await getSubmission(searchId.trim(), tokenVal || accessToken);
       setData(res);
     } catch (err: any) {
-      setError(err.message || 'Submission not found. Please verify the Submission ID.');
+      setError(err.message || 'Submission not found. Please verify the Submission ID or Mobile Number.');
       setData(null);
     } finally {
       setLoading(false);
@@ -69,7 +69,7 @@ export const TrackPage: React.FC = () => {
             Track Objection Submission Status
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Enter your official Submission Reference ID (e.g., LDR-2026-000001) to verify acknowledgment status.
+            Enter your official Submission Reference ID (e.g., LDR-2026-000001) or registered 10-digit Mobile Number to verify acknowledgment status.
           </p>
         </div>
 
@@ -84,7 +84,7 @@ export const TrackPage: React.FC = () => {
             <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="e.g. LDR-2026-000001"
+              placeholder="Submission ID (LDR-...) or 10-digit Mobile Number"
               value={submissionId}
               onChange={e => setSubmissionId(e.target.value.toUpperCase())}
               className="w-full pl-10 pr-4 py-2.5 text-sm font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue uppercase"

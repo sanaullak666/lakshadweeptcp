@@ -392,16 +392,37 @@ export async function createSubmission(req: Request, res: Response) {
 
 export async function getSubmissionById(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const rawId = String(req.params.id || '').trim();
     const token = req.query.token as string;
 
-    const [subs]: any = await pool.query(
-      'SELECT * FROM submissions WHERE submission_id = ?',
-      [id]
-    );
+    // Check if search parameter is a mobile phone number (with optional +91 or 0 prefix)
+    let cleanDigits = rawId.replace(/\D/g, '');
+    if (cleanDigits.length === 12 && cleanDigits.startsWith('91')) {
+      cleanDigits = cleanDigits.substring(2);
+    } else if (cleanDigits.length === 11 && cleanDigits.startsWith('0')) {
+      cleanDigits = cleanDigits.substring(1);
+    }
+
+    let subs: any[] = [];
+
+    if (/^[6-9]\d{9}$/.test(cleanDigits)) {
+      const [byPhone]: any = await pool.query(
+        `SELECT * FROM submissions WHERE REPLACE(REPLACE(phone, ' ', ''), '-', '') = ? OR phone = ? ORDER BY id DESC LIMIT 1`,
+        [cleanDigits, cleanDigits]
+      );
+      subs = byPhone;
+    }
 
     if (subs.length === 0) {
-      return res.status(404).json({ success: false, message: 'Submission not found' });
+      const [byId]: any = await pool.query(
+        'SELECT * FROM submissions WHERE UPPER(submission_id) = ?',
+        [rawId.toUpperCase()]
+      );
+      subs = byId;
+    }
+
+    if (subs.length === 0) {
+      return res.status(404).json({ success: false, message: 'Submission not found. Please verify the Submission ID or Mobile Number.' });
     }
 
     const sub = subs[0];
@@ -411,7 +432,7 @@ export async function getSubmissionById(req: Request, res: Response) {
 
     const [letters]: any = await pool.query(
       'SELECT letter_number, template_version, letter_title, final_html, created_at FROM objection_letters WHERE submission_id = ? ORDER BY letter_number ASC',
-      [id]
+      [sub.submission_id]
     );
 
     if (!isAuthorized) {
@@ -428,8 +449,8 @@ export async function getSubmissionById(req: Request, res: Response) {
           letterNumber: l.letter_number,
           title: l.letter_title,
           templateVersion: l.template_version,
-          viewUrl: `/api/submissions/${id}/letters/${l.letter_number}/view?token=${sub.access_token}`,
-          downloadUrl: `/api/submissions/${id}/letters/${l.letter_number}/download?token=${sub.access_token}`
+          viewUrl: `/api/submissions/${sub.submission_id}/letters/${l.letter_number}/view?token=${sub.access_token}`,
+          downloadUrl: `/api/submissions/${sub.submission_id}/letters/${l.letter_number}/download?token=${sub.access_token}`
         }))
       });
     }
@@ -458,10 +479,10 @@ export async function getSubmissionById(req: Request, res: Response) {
         templateVersion: l.template_version,
         finalHtml: l.final_html,
         createdAt: l.created_at,
-        viewUrl: `/api/submissions/${id}/letters/${l.letter_number}/view?token=${sub.access_token}`,
-        downloadUrl: `/api/submissions/${id}/letters/${l.letter_number}/download?token=${sub.access_token}`
+        viewUrl: `/api/submissions/${sub.submission_id}/letters/${l.letter_number}/view?token=${sub.access_token}`,
+        downloadUrl: `/api/submissions/${sub.submission_id}/letters/${l.letter_number}/download?token=${sub.access_token}`
       })),
-      zipDownloadUrl: `/api/submissions/${id}/download-both?token=${sub.access_token}`
+      zipDownloadUrl: `/api/submissions/${sub.submission_id}/download-both?token=${sub.access_token}`
     });
 
   } catch (err: any) {
