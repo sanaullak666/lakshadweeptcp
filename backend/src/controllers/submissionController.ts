@@ -264,18 +264,21 @@ export async function createSubmission(req: Request, res: Response) {
         {
           letterNumber: 1,
           title: tmpl1.title,
+          finalHtml: finalHtml1,
           downloadUrl: `/api/submissions/${submissionId}/letters/1/download?token=${accessToken}`,
           viewUrl: `/api/submissions/${submissionId}/letters/1/view?token=${accessToken}`
         },
         {
           letterNumber: 2,
           title: tmpl2.title,
+          finalHtml: finalHtml2,
           downloadUrl: `/api/submissions/${submissionId}/letters/2/download?token=${accessToken}`,
           viewUrl: `/api/submissions/${submissionId}/letters/2/view?token=${accessToken}`
         },
         {
           letterNumber: 3,
           title: tmpl3.title,
+          finalHtml: finalHtml3,
           downloadUrl: `/api/submissions/${submissionId}/letters/3/download?token=${accessToken}`,
           viewUrl: `/api/submissions/${submissionId}/letters/3/view?token=${accessToken}`
         }
@@ -316,7 +319,7 @@ export async function getSubmissionById(req: Request, res: Response) {
     const isAuthorized = token && token === sub.access_token;
 
     const [letters]: any = await pool.query(
-      'SELECT letter_number, template_version, letter_title, created_at FROM objection_letters WHERE submission_id = ? ORDER BY letter_number ASC',
+      'SELECT letter_number, template_version, letter_title, final_html, created_at FROM objection_letters WHERE submission_id = ? ORDER BY letter_number ASC',
       [id]
     );
 
@@ -355,6 +358,7 @@ export async function getSubmissionById(req: Request, res: Response) {
         letterNumber: l.letter_number,
         title: l.letter_title,
         templateVersion: l.template_version,
+        finalHtml: l.final_html,
         createdAt: l.created_at,
         viewUrl: `/api/submissions/${id}/letters/${l.letter_number}/view?token=${sub.access_token}`,
         downloadUrl: `/api/submissions/${id}/letters/${l.letter_number}/download?token=${sub.access_token}`
@@ -577,25 +581,73 @@ export async function downloadLetterPdf(req: Request, res: Response) {
     }
 
     const [letters]: any = await pool.query(
-      'SELECT pdf_path, letter_number FROM objection_letters WHERE submission_id = ? AND letter_number = ?',
+      'SELECT pdf_path, letter_number, final_html, letter_title FROM objection_letters WHERE submission_id = ? AND letter_number = ?',
       [id, parseInt(String(letterNumber), 10)]
     );
 
-    if (letters.length === 0 || !fs.existsSync(letters[0].pdf_path)) {
-      return res.status(404).json({ success: false, message: 'PDF file not found on server' });
+    if (letters.length === 0) {
+      return res.status(404).json({ success: false, message: 'Objection letter not found' });
     }
+
+    const letter = letters[0];
+    const hasValidPdfOnDisk = letter.pdf_path && fs.existsSync(letter.pdf_path) && fs.statSync(letter.pdf_path).size > 2000;
 
     const lNum = parseInt(String(letterNumber), 10);
     const subRows: any = await pool.query('SELECT full_name FROM submissions WHERE submission_id = ?', [id]);
     const safeName = (subRows[0][0]?.full_name || '').replace(/[^a-zA-Z0-9_-]/g, '_');
     const defaultFilename = `Objection_Letter_${lNum}_${id}_${safeName}.pdf`;
-    const filename = letters[0].pdf_path && fs.existsSync(letters[0].pdf_path)
-      ? path.basename(letters[0].pdf_path)
-      : defaultFilename;
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return fs.createReadStream(letters[0].pdf_path).pipe(res);
+    if (hasValidPdfOnDisk) {
+      const filename = letter.pdf_path && fs.existsSync(letter.pdf_path)
+        ? path.basename(letter.pdf_path)
+        : defaultFilename;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return fs.createReadStream(letter.pdf_path).pipe(res);
+    }
+
+    // In serverless environments where Chromium binary is absent or disk is ephemeral:
+    // Serve the official full-content letter styled with A4 margins and auto-trigger native print-to-PDF
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${letter.letter_title} - ${id}</title>
+        <style>
+          @page { size: A4; margin: 25.4mm; }
+          *, *::before, *::after { box-sizing: border-box; }
+          body { font-family: "Times New Roman", Times, Georgia, serif; font-size: 12pt; line-height: 1.35; color: #000; margin: 0; padding: 25.4mm; background: #fff; }
+          .container { max-width: 800px; margin: 0 auto; }
+          table { width: 100%; border-collapse: collapse; margin: 14pt 0; font-size: 10pt; line-height: 1.25; }
+          table th, table td { border: 1px solid #000; padding: 5pt 6pt; text-align: left; vertical-align: top; }
+          table th { font-weight: bold; }
+          .signature-container { height: 55px; max-width: 200px; display: flex; align-items: center; }
+          .signature-container img { max-height: 55px; max-width: 180px; object-fit: contain; }
+          .print-notice { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 12px; margin-bottom: 20px; border-radius: 6px; font-family: sans-serif; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+          .btn-print { background: #1e40af; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+          @media print { .print-notice { display: none !important; } body { padding: 0; } }
+        </style>
+        <script>
+          window.addEventListener('load', function() {
+            setTimeout(function() { window.print(); }, 250);
+          });
+        </script>
+      </head>
+      <body>
+        <div class="print-notice">
+          <span>📄 <strong>Print to PDF:</strong> Select "Save as PDF" to preserve official formatting.</span>
+          <button onclick="window.print()" class="btn-print">Save as PDF / Print</button>
+        </div>
+        <div class="container">
+          ${letter.final_html}
+        </div>
+      </body>
+      </html>
+    `);
 
   } catch (err: any) {
     console.error('[downloadLetterPdf Error]:', err);

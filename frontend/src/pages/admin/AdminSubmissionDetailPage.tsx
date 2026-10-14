@@ -19,12 +19,14 @@ import {
 } from 'lucide-react';
 import { getSubmissionDetail, updateSubmissionStatus, addAdminNote } from '../../services/api';
 import { SubmissionDetailData } from '../../types';
+import { downloadLetterAsPdf } from '../../utils/pdfDownloader';
 
 export const AdminSubmissionDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<SubmissionDetailData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [downloading, setDownloading] = useState<number | null>(null);
 
   // Status Change State
   const [newStatus, setNewStatus] = useState<string>('');
@@ -53,6 +55,38 @@ export const AdminSubmissionDetailPage: React.FC = () => {
   useEffect(() => {
     fetchDetail();
   }, [id]);
+
+  const handleDownloadLetter = async (letterIndex: number) => {
+    if (!data?.letters) return;
+    const l = data.letters[letterIndex];
+    if (!l) return;
+    setDownloading(l.letterNumber);
+    try {
+      const safeName = (data.submission?.fullName || 'Applicant').replace(/[^a-zA-Z0-9_-]/g, '_');
+      await downloadLetterAsPdf(
+        l.finalHtml || l.viewUrl,
+        `Objection_Letter_${l.letterNumber}_${data.submission.submissionId}_${safeName}.pdf`
+      );
+    } catch (err) {
+      console.error('Download error:', err);
+      window.open(l.viewUrl, '_blank');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (!data?.letters) return;
+    setDownloading(999);
+    try {
+      for (let i = 0; i < data.letters.length; i++) {
+        await handleDownloadLetter(i);
+        await new Promise(r => setTimeout(r, 600));
+      }
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const handleStatusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,14 +168,14 @@ export const AdminSubmissionDetailPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <a
-            href={zipDownloadUrl}
-            download
-            className="px-4 py-2 bg-gov-emerald hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow"
+          <button
+            onClick={handleDownloadAll}
+            disabled={downloading === 999}
+            className="px-4 py-2 bg-gov-emerald hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow disabled:opacity-50 cursor-pointer"
           >
-            <Archive className="w-4 h-4" />
-            <span>Download All 3 Letters (ZIP)</span>
-          </a>
+            <Download className="w-4 h-4" />
+            <span>{downloading === 999 ? 'Generating All...' : 'Download All 3 Letters (PDF)'}</span>
+          </button>
         </div>
       </div>
 
@@ -274,14 +308,14 @@ export const AdminSubmissionDetailPage: React.FC = () => {
                   <Eye className="w-3.5 h-3.5" />
                   <span>View Stored Letter</span>
                 </a>
-                <a
-                  href={letters[0]?.downloadUrl}
-                  download
-                  className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 shadow-xs"
+                <button
+                  onClick={() => handleDownloadLetter(0)}
+                  disabled={downloading === 1}
+                  className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
-                </a>
+                  <span>{downloading === 1 ? 'Generating...' : 'Download PDF'}</span>
+                </button>
               </div>
             </div>
 
@@ -323,14 +357,14 @@ export const AdminSubmissionDetailPage: React.FC = () => {
                   <Eye className="w-3.5 h-3.5" />
                   <span>View Stored Letter</span>
                 </a>
-                <a
-                  href={letters[1]?.downloadUrl}
-                  download
-                  className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 shadow-xs"
+                <button
+                  onClick={() => handleDownloadLetter(1)}
+                  disabled={downloading === 2}
+                  className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
-                </a>
+                  <span>{downloading === 2 ? 'Generating...' : 'Download PDF'}</span>
+                </button>
               </div>
             </div>
 
@@ -372,14 +406,14 @@ export const AdminSubmissionDetailPage: React.FC = () => {
                   <Eye className="w-3.5 h-3.5" />
                   <span>View Stored Letter</span>
                 </a>
-                <a
-                  href={letters[2]?.downloadUrl}
-                  download
-                  className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 shadow-xs"
+                <button
+                  onClick={() => handleDownloadLetter(2)}
+                  disabled={downloading === 3}
+                  className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
-                </a>
+                  <span>{downloading === 3 ? 'Generating...' : 'Download PDF'}</span>
+                </button>
               </div>
             </div>
 

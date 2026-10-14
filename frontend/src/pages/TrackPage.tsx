@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, FileText, CheckCircle2, Clock, Download, Eye, Shield, AlertCircle } from 'lucide-react';
 import { getSubmission } from '../services/api';
+import { downloadLetterAsPdf } from '../utils/pdfDownloader';
 
 export const TrackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -13,6 +14,7 @@ export const TrackPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [data, setData] = useState<any>(null);
+  const [downloading, setDownloading] = useState<number | null>(null);
 
   useEffect(() => {
     if (idFromUrl) {
@@ -37,6 +39,40 @@ export const TrackPage: React.FC = () => {
       setData(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadLetter = async (letterIndex: number) => {
+    if (!data?.letters) return;
+    const l = data.letters[letterIndex];
+    if (!l) return;
+    setDownloading(l.letterNumber);
+    try {
+      const applicantName = data.submission?.fullName || data.fullName || 'Applicant';
+      const safeName = applicantName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const sId = data.submission?.submissionId || data.submissionId || 'Submission';
+      await downloadLetterAsPdf(
+        l.finalHtml || l.viewUrl,
+        `Objection_Letter_${l.letterNumber}_${sId}_${safeName}.pdf`
+      );
+    } catch (err) {
+      console.error('Download error:', err);
+      window.open(l.viewUrl, '_blank');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (!data?.letters) return;
+    setDownloading(999);
+    try {
+      for (let i = 0; i < data.letters.length; i++) {
+        await handleDownloadLetter(i);
+        await new Promise(r => setTimeout(r, 600));
+      }
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -147,7 +183,7 @@ export const TrackPage: React.FC = () => {
               <h3 className="font-bold text-slate-900 text-sm">Download Stored Objection Letters</h3>
 
               <div className="space-y-3">
-                {data.letters.map((letter: any) => (
+                {data.letters.map((letter: any, idx: number) => (
                   <div
                     key={letter.letterNumber}
                     className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-slate-50 transition-colors"
@@ -169,31 +205,31 @@ export const TrackPage: React.FC = () => {
                         <Eye className="w-3.5 h-3.5" />
                         <span>View</span>
                       </a>
-                      <a
-                        href={letter.downloadUrl}
-                        download
-                        className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1"
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadLetter(idx)}
+                        disabled={downloading === letter.letterNumber}
+                        className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>Download PDF</span>
-                      </a>
+                        <span>{downloading === letter.letterNumber ? 'Generating PDF...' : 'Download PDF'}</span>
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {data.zipDownloadUrl && (
-                <div className="pt-2 text-right">
-                  <a
-                    href={data.zipDownloadUrl}
-                    download
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gov-emerald hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download All Letters (ZIP)</span>
-                  </a>
-                </div>
-              )}
+              <div className="pt-2 text-right">
+                <button
+                  type="button"
+                  onClick={handleDownloadAll}
+                  disabled={downloading === 999}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gov-emerald hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow disabled:opacity-50 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{downloading === 999 ? 'Generating All PDFs...' : 'Download All Letters (PDF)'}</span>
+                </button>
+              </div>
             </div>
           )}
 
