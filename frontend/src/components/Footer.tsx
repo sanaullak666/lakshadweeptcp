@@ -49,8 +49,35 @@ export const Footer: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-8 pt-4 border-t border-slate-800 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-2">
-          <p>Protected by end-to-end immutability and digital audit logs.</p>
+        {/* LSA Central Committee Branding & Copyright */}
+        <div className="mt-8 pt-6 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center -space-x-2 shrink-0">
+              <img
+                src="/lsalogo.jpeg"
+                alt="Lakshadweep Students Association Logo"
+                className="w-10 h-10 rounded-full border-2 border-gov-gold object-cover shadow-sm bg-white z-10"
+              />
+              <img
+                src="/lsaflag.png"
+                alt="Lakshadweep Students Association Flag"
+                className="w-8 h-8 rounded-full border-2 border-slate-700 object-cover shadow-sm bg-white"
+              />
+            </div>
+            <div>
+              <p className="text-white font-bold text-sm tracking-wide">
+                Lakshadweep Students Association Central Committee
+              </p>
+              <p className="text-slate-400 text-xs">
+                &copy; {new Date().getFullYear()} Lakshadweep Students Association Central Committee. All rights reserved.
+              </p>
+            </div>
+          </div>
+
+          <div className="text-center md:text-right text-xs space-y-0.5">
+            <p className="text-slate-300 font-medium">Public Pre-Legislative Consultation Initiative</p>
+            <p className="text-slate-500 text-[11px]">Empowering Lakshadweep Islanders &bull; End-to-End Immutability</p>
+          </div>
         </div>
       </div>
     </footer>

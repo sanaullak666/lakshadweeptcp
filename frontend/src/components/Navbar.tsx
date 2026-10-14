@@ -12,13 +12,27 @@ export const Navbar: React.FC = () => {
       {/* Main navigation */}
       <div className="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
         <Link to="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1 border-2 border-gov-gold shadow-sm group-hover:scale-105 transition-transform">
-            <ShieldCheck className="w-7 h-7 text-gov-navy" />
+          <div className="flex items-center -space-x-2 shrink-0">
+            <img
+              src="/lsalogo.jpeg"
+              alt="LSA Logo"
+              className="w-10 h-10 rounded-full border-2 border-gov-gold shadow-sm object-cover bg-white z-10 group-hover:scale-105 transition-transform"
+            />
+            <img
+              src="/lsaflag.png"
+              alt="LSA Flag"
+              className="w-8 h-8 rounded-full border-2 border-white shadow-sm object-cover bg-white group-hover:scale-105 transition-transform"
+            />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-bold tracking-tight text-white group-hover:text-sky-200 transition-colors">
-              Lakshadweep Town & Country Planning
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white group-hover:text-sky-200 transition-colors">
+                Lakshadweep Town & Country Planning
+              </h1>
+              <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-bold bg-white/10 text-gov-gold rounded border border-gov-gold/30">
+                LSA Central Committee
+              </span>
+            </div>
             <p className="text-xs text-sky-200/90 font-medium">
               Public Objections & Suggestions Portal (Rules 2026)
             </p>

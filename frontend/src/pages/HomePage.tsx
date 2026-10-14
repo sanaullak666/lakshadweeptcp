@@ -9,9 +9,18 @@ export const HomePage: React.FC = () => {
       {/* Hero Banner */}
       <section className="bg-gradient-to-b from-gov-navy to-gov-blue text-white py-12 md:py-16 px-4 border-b-4 border-gov-gold relative overflow-hidden">
         <div className="container mx-auto max-w-5xl relative z-10">
-          <div className="inline-flex items-center gap-2 bg-gov-gold/20 text-gov-gold border border-gov-gold/40 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-4">
-            <Scale className="w-3.5 h-3.5" />
-            <span>Official Pre-Legislative Consultation Notice</span>
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <div className="inline-flex items-center gap-2 bg-gov-gold/20 text-gov-gold border border-gov-gold/40 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+              <Scale className="w-3.5 h-3.5" />
+              <span>Official Pre-Legislative Consultation Notice</span>
+            </div>
+            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 pl-1 pr-3 py-1 rounded-full text-xs text-white">
+              <div className="flex items-center -space-x-1.5 shrink-0">
+                <img src="/lsalogo.jpeg" alt="LSA" className="w-4 h-4 rounded-full border border-gov-gold object-cover z-10" />
+                <img src="/lsaflag.png" alt="LSA Flag" className="w-3.5 h-3.5 rounded-full border border-white object-cover" />
+              </div>
+              <span className="font-medium text-slate-100">Lakshadweep Students Association Central Committee</span>
+            </div>
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight text-white mb-4">

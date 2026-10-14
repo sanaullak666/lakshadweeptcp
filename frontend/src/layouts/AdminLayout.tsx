@@ -34,11 +34,15 @@ export const AdminLayout: React.FC = () => {
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
         <div className="container mx-auto px-4 flex flex-wrap justify-between items-center py-2.5 gap-3">
           <div className="flex items-center space-x-2">
+            <div className="flex items-center -space-x-1.5 shrink-0">
+              <img src="/lsalogo.jpeg" alt="LSA" className="w-5 h-5 rounded-full border border-gov-gold object-cover z-10" />
+              <img src="/lsaflag.png" alt="LSA Flag" className="w-4 h-4 rounded-full border border-white object-cover" />
+            </div>
             <span className="bg-gov-navy text-white text-[11px] font-bold px-2 py-0.5 rounded">
               ADMIN CONSOLE
             </span>
             <span className="text-xs text-slate-500 hidden sm:inline">
-              Lakshadweep Objections Management System
+              Lakshadweep Students Association Central Committee
             </span>
           </div>
 

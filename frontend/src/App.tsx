@@ -36,6 +36,33 @@ const PublicLayout: React.FC = () => {
         <Outlet />
       </main>
       {!isAdminLogin && <Footer />}
+
+      {/* Floating Corner Icon: Lakshadweep Students Association Central Committee */}
+      <div
+        className="fixed bottom-4 right-4 z-40 bg-white/95 backdrop-blur-xs border border-slate-200/90 rounded-full shadow-lg hover:shadow-xl pl-1.5 pr-2.5 sm:pr-3.5 py-1.5 flex items-center gap-2 transition-all hover:scale-105 group select-none"
+        title="Lakshadweep Students Association Central Committee"
+      >
+        <div className="flex items-center -space-x-2 shrink-0">
+          <img
+            src="/lsalogo.jpeg"
+            alt="LSA Logo"
+            className="w-7 h-7 rounded-full border border-gov-gold object-cover shadow-xs z-10 bg-white"
+          />
+          <img
+            src="/lsaflag.png"
+            alt="LSA Flag"
+            className="w-6 h-6 rounded-full border border-white object-cover shadow-xs bg-white"
+          />
+        </div>
+        <div className="text-left hidden sm:block">
+          <p className="text-[11px] font-bold text-slate-800 leading-tight group-hover:text-gov-blue transition-colors">
+            LSA Central Committee
+          </p>
+          <p className="text-[9px] text-slate-500 leading-tight">
+            Official Initiative
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
