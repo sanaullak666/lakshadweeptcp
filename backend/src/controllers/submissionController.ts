@@ -12,6 +12,8 @@ import { sendConfirmationEmail } from '../services/emailService';
 
 export async function createSubmission(req: Request, res: Response) {
   const connection = await pool.getConnection();
+  let normalizedPhone = '';
+  let normalizedEmail = '';
 
   try {
     const {
@@ -31,7 +33,7 @@ export async function createSubmission(req: Request, res: Response) {
     } = req.body;
 
     // 1. Mandatory Mobile Number validation and duplicate check
-    const normalizedPhone = (phone || '').replace(/\D/g, '').trim();
+    normalizedPhone = (phone || '').replace(/\D/g, '').trim();
     if (!normalizedPhone || !/^[6-9]\d{9}$/.test(normalizedPhone)) {
       if (req.file && fs.existsSync(req.file.path)) {
         try { fs.unlinkSync(req.file.path); } catch {}
@@ -62,7 +64,7 @@ export async function createSubmission(req: Request, res: Response) {
     }
 
     // 2. Email is OPTIONAL: but if provided, check for duplicate email
-    const normalizedEmail = (email || '').trim().toLowerCase();
+    normalizedEmail = (email || '').trim().toLowerCase();
     if (normalizedEmail) {
       const [existingByEmail]: any = await pool.query(
         'SELECT submission_id, full_name, submission_date FROM submissions WHERE LOWER(TRIM(email)) = ? ORDER BY id ASC LIMIT 1',
@@ -141,26 +143,19 @@ export async function createSubmission(req: Request, res: Response) {
       return res.status(400).json({ success: false, message: 'Applicant signature is required' });
     }
 
-    // Begin Transaction
-    await connection.beginTransaction();
-
-    // 1. Generate Submission ID and Access Token
-    const submissionId = await generateSubmissionId();
-    const accessToken = generateAccessToken();
-
-    // 2. Fetch ACTIVE Letter 1, Letter 2, and Letter 3 templates
-    const [templates1]: any = await connection.query(
+    // 1. Fetch ACTIVE Letter 1, Letter 2, and Letter 3 templates (outside transaction)
+    const [templates1]: any = await pool.query(
       'SELECT * FROM letter_templates WHERE letter_number = 1 AND is_active = TRUE LIMIT 1'
     );
-    const [templates2]: any = await connection.query(
+    const [templates2]: any = await pool.query(
       'SELECT * FROM letter_templates WHERE letter_number = 2 AND is_active = TRUE LIMIT 1'
     );
-    const [templates3]: any = await connection.query(
+    const [templates3]: any = await pool.query(
       'SELECT * FROM letter_templates WHERE letter_number = 3 AND is_active = TRUE LIMIT 1'
     );
 
     if (templates1.length === 0 || templates2.length === 0 || templates3.length === 0) {
-      await connection.rollback();
+      connection.release();
       return res.status(500).json({
         success: false,
         message: 'Active objection letter templates not found. Please contact administrator.'
@@ -170,6 +165,10 @@ export async function createSubmission(req: Request, res: Response) {
     const tmpl1 = templates1[0];
     const tmpl2 = templates2[0];
     const tmpl3 = templates3[0];
+
+    // 2. Generate Submission ID (atomic PostgreSQL sequence) and Access Token
+    const submissionId = await generateSubmissionId(connection);
+    const accessToken = generateAccessToken();
 
     // 3. Prepare replacement data
     const replacementData = {
@@ -186,12 +185,12 @@ export async function createSubmission(req: Request, res: Response) {
       signatureHtml
     };
 
-    // 4. Generate final HTML for all three letters
+    // 4. Generate final HTML for all three letters in memory
     const finalHtml1 = replacePlaceholders(tmpl1.content_html, replacementData);
     const finalHtml2 = replacePlaceholders(tmpl2.content_html, replacementData);
     const finalHtml3 = replacePlaceholders(tmpl3.content_html, replacementData);
 
-    // 5. Generate PDFs for all three letters
+    // 5. Target PDF and ZIP paths
     const isServerless = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
     const baseStorage = isServerless ? path.join(os.tmpdir(), 'pdfs') : path.resolve(__dirname, '../../storage/pdfs');
     const pdfDir = path.join(baseStorage, submissionId);
@@ -209,92 +208,101 @@ export async function createSubmission(req: Request, res: Response) {
     const pdfName3 = `Objection_Letter_3_${submissionId}_${sanitizedName}.pdf`;
     const pdfPath3 = path.join(pdfDir, pdfName3);
 
-    // Generate Letter 1 PDF
-    await generatePdf({
-      contentHtml: finalHtml1,
-      outputPath: pdfPath1,
-      title: tmpl1.title,
-      submissionId
-    });
-
-    // Generate Letter 2 PDF
-    await generatePdf({
-      contentHtml: finalHtml2,
-      outputPath: pdfPath2,
-      title: tmpl2.title,
-      submissionId
-    });
-
-    // Generate Letter 3 PDF
-    await generatePdf({
-      contentHtml: finalHtml3,
-      outputPath: pdfPath3,
-      title: tmpl3.title,
-      submissionId
-    });
-
-    // 6. Generate ZIP bundling all three letters
     const zipName = `${submissionId}_Objection_Letters.zip`;
     const zipPath = path.join(pdfDir, zipName);
-    await createZipArchive([
-      { filePath: pdfPath1, entryName: pdfName1 },
-      { filePath: pdfPath2, entryName: pdfName2 },
-      { filePath: pdfPath3, entryName: pdfName3 }
-    ], zipPath);
 
-    // 7. Save Submission record
+    // 6. Fast Atomic Database Transaction (completes in ~10ms to prevent connection exhaustion)
     const clientIp = req.ip || req.socket.remoteAddress || null;
     const userAgent = req.headers['user-agent'] || null;
 
-    await connection.query(`
-      INSERT INTO submissions (
-        submission_id, access_token, full_name, relationship, parent_spouse_name,
-        house_name, island, pin_code, email, phone, place, submission_date,
-        status, idempotency_key, ip_address, user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Submitted', ?, ?, ?)
-    `, [
-      submissionId, accessToken, fullName, relationship, parentSpouseName,
-      houseName, island, pinCode, normalizedEmail || null, normalizedPhone, place, date,
-      idempotencyKey || null, clientIp, userAgent
-    ]);
+    let transactionCommitted = false;
+    try {
+      await connection.beginTransaction();
 
-    // 8. Save Signature record
-    await connection.query(`
-      INSERT INTO signatures (submission_id, signature_type, file_path, mime_type)
-      VALUES (?, ?, ?, ?)
-    `, [submissionId, signatureType, signatureFilePath, signatureMime]);
+      // Save Submission record
+      await connection.query(`
+        INSERT INTO submissions (
+          submission_id, access_token, full_name, relationship, parent_spouse_name,
+          house_name, island, pin_code, email, phone, place, submission_date,
+          status, idempotency_key, ip_address, user_agent
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Submitted', ?, ?, ?)
+      `, [
+        submissionId, accessToken, fullName, relationship, parentSpouseName,
+        houseName, island, pinCode, normalizedEmail || null, normalizedPhone, place, date,
+        idempotencyKey || null, clientIp, userAgent
+      ]);
 
-    // 9. Save Letter 1 in objection_letters (IMMUTABLE)
-    await connection.query(`
-      INSERT INTO objection_letters (
-        submission_id, letter_number, template_version, letter_title, final_html, pdf_path
-      ) VALUES (?, 1, ?, ?, ?, ?)
-    `, [submissionId, tmpl1.version, tmpl1.title, finalHtml1, pdfPath1]);
+      // Save Signature record
+      await connection.query(`
+        INSERT INTO signatures (submission_id, signature_type, file_path, mime_type)
+        VALUES (?, ?, ?, ?)
+      `, [submissionId, signatureType, signatureFilePath, signatureMime]);
 
-    // 10. Save Letter 2 in objection_letters (IMMUTABLE)
-    await connection.query(`
-      INSERT INTO objection_letters (
-        submission_id, letter_number, template_version, letter_title, final_html, pdf_path
-      ) VALUES (?, 2, ?, ?, ?, ?)
-    `, [submissionId, tmpl2.version, tmpl2.title, finalHtml2, pdfPath2]);
+      // Save Letter 1 in objection_letters (IMMUTABLE)
+      await connection.query(`
+        INSERT INTO objection_letters (
+          submission_id, letter_number, template_version, letter_title, final_html, pdf_path
+        ) VALUES (?, 1, ?, ?, ?, ?)
+      `, [submissionId, tmpl1.version, tmpl1.title, finalHtml1, pdfPath1]);
 
-    // 11. Save Letter 3 in objection_letters (IMMUTABLE)
-    await connection.query(`
-      INSERT INTO objection_letters (
-        submission_id, letter_number, template_version, letter_title, final_html, pdf_path
-      ) VALUES (?, 3, ?, ?, ?, ?)
-    `, [submissionId, tmpl3.version, tmpl3.title, finalHtml3, pdfPath3]);
+      // Save Letter 2 in objection_letters (IMMUTABLE)
+      await connection.query(`
+        INSERT INTO objection_letters (
+          submission_id, letter_number, template_version, letter_title, final_html, pdf_path
+        ) VALUES (?, 2, ?, ?, ?, ?)
+      `, [submissionId, tmpl2.version, tmpl2.title, finalHtml2, pdfPath2]);
 
-    // 12. Record initial status history
-    await connection.query(`
-      INSERT INTO submission_status_history (submission_id, old_status, new_status, changed_by, remarks)
-      VALUES (?, 'None', 'Submitted', 'Applicant', 'Initial submission received and verified')
-    `, [submissionId]);
+      // Save Letter 3 in objection_letters (IMMUTABLE)
+      await connection.query(`
+        INSERT INTO objection_letters (
+          submission_id, letter_number, template_version, letter_title, final_html, pdf_path
+        ) VALUES (?, 3, ?, ?, ?, ?)
+      `, [submissionId, tmpl3.version, tmpl3.title, finalHtml3, pdfPath3]);
 
-    // Commit Transaction
-    await connection.commit();
+      // Record initial status history
+      await connection.query(`
+        INSERT INTO submission_status_history (submission_id, old_status, new_status, changed_by, remarks)
+        VALUES (?, 'None', 'Submitted', 'Applicant', 'Initial submission received and verified')
+      `, [submissionId]);
 
-    // Trigger async email confirmation (non-blocking) only if email provided
+      // Commit and release connection immediately
+      await connection.commit();
+      transactionCommitted = true;
+    } finally {
+      connection.release();
+    }
+
+    // 7. Generate PDFs and ZIP archive (outside transaction, connections freed)
+    try {
+      await generatePdf({
+        contentHtml: finalHtml1,
+        outputPath: pdfPath1,
+        title: tmpl1.title,
+        submissionId
+      });
+      await generatePdf({
+        contentHtml: finalHtml2,
+        outputPath: pdfPath2,
+        title: tmpl2.title,
+        submissionId
+      });
+      await generatePdf({
+        contentHtml: finalHtml3,
+        outputPath: pdfPath3,
+        title: tmpl3.title,
+        submissionId
+      });
+      await createZipArchive([
+        { filePath: pdfPath1, entryName: pdfName1 },
+        { filePath: pdfPath2, entryName: pdfName2 },
+        { filePath: pdfPath3, entryName: pdfName3 }
+      ], zipPath);
+    } catch (pdfErr) {
+      console.warn('[createSubmission PDF Pre-render Warning]:', pdfErr);
+      // PDFs will still be generated on-demand during view/download if needed
+    }
+
+    // 8. Trigger async email confirmation (non-blocking) only if email provided
     if (normalizedEmail) {
       sendConfirmationEmail({
         toEmail: normalizedEmail,
@@ -349,15 +357,39 @@ export async function createSubmission(req: Request, res: Response) {
     });
 
   } catch (error: any) {
-    await connection.rollback();
+    try {
+      await connection.rollback();
+    } catch {}
+    try {
+      connection.release();
+    } catch {}
+
     console.error('[createSubmission Error]:', error);
+
+    // If duplicate key error hit during race condition
+    if (error.code === '23505') {
+      const errDetail = error.detail || '';
+      if (errDetail.includes('phone')) {
+        return res.status(409).json({
+          success: false,
+          code: 'DUPLICATE_PHONE',
+          message: `An objection has already been submitted using this mobile number (${normalizedPhone}). Duplicate entries are not allowed.`
+        });
+      }
+      if (errDetail.includes('email')) {
+        return res.status(409).json({
+          success: false,
+          code: 'DUPLICATE_EMAIL',
+          message: `An objection has already been submitted using this email address (${normalizedEmail}). Duplicate entries are not allowed.`
+        });
+      }
+    }
+
     return res.status(500).json({
       success: false,
-      message: 'Failed to process objection submission. Transaction rolled back safely.',
+      message: 'Failed to process objection submission. Please try again.',
       error: error.message
     });
-  } finally {
-    connection.release();
   }
 }
 

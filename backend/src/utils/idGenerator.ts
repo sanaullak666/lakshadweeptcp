@@ -1,11 +1,24 @@
 import crypto from 'crypto';
 import pool from '../config/database';
 
-export async function generateSubmissionId(): Promise<string> {
+export async function generateSubmissionId(conn?: any): Promise<string> {
   const currentYear = new Date().getFullYear();
   const prefix = `LDR-${currentYear}-`;
+  const executor = conn || pool;
 
-  const [rows]: any = await pool.query(
+  // Try PostgreSQL atomic sequence first for 100% collision-free concurrent IDs
+  try {
+    const [seqRows]: any = await executor.query("SELECT nextval('submission_code_seq') as seq");
+    if (seqRows && seqRows.length > 0 && seqRows[0].seq) {
+      const num = parseInt(seqRows[0].seq, 10);
+      const paddedNum = String(num).padStart(6, '0');
+      return `${prefix}${paddedNum}`;
+    }
+  } catch {
+    // If sequence is not initialized or running in MySQL, fallback to table scan
+  }
+
+  const [rows]: any = await executor.query(
     'SELECT submission_id FROM submissions WHERE submission_id LIKE ? ORDER BY id DESC LIMIT 1',
     [`${prefix}%`]
   );

@@ -1,15 +1,10 @@
+import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 
-export const submissionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // Limit each IP to 30 submissions per 15 minutes
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many requests from this IP. Please wait a few minutes before submitting again.'
-  }
-});
+// Pass-through limiter for public submissions to ensure all citizens can register without IP limits
+export const submissionLimiter = (_req: Request, _res: Response, next: NextFunction) => {
+  next();
+};
 
 export const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
