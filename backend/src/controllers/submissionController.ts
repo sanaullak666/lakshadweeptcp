@@ -423,7 +423,14 @@ export async function getSubmissionById(req: Request, res: Response) {
         status: sub.status,
         letterCount: letters.length,
         submittedAt: sub.created_at,
-        authorized: false
+        authorized: false,
+        letters: letters.map((l: any) => ({
+          letterNumber: l.letter_number,
+          title: l.letter_title,
+          templateVersion: l.template_version,
+          viewUrl: `/api/submissions/${id}/letters/${l.letter_number}/view?token=${sub.access_token}`,
+          downloadUrl: `/api/submissions/${id}/letters/${l.letter_number}/download?token=${sub.access_token}`
+        }))
       });
     }
 

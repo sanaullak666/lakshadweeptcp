@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, FileText, CheckCircle2, Clock, Download, Eye, Shield, AlertCircle } from 'lucide-react';
+import { Search, FileText, CheckCircle2, Clock, Download, Eye, Printer, Shield, AlertCircle } from 'lucide-react';
 import { getSubmission } from '../services/api';
 import { downloadLetterAsPdf } from '../utils/pdfDownloader';
 
@@ -185,42 +185,63 @@ export const TrackPage: React.FC = () => {
             </div>
           </div>
 
-          {/* If Authorized with Token */}
-          {data.authorized && data.letters && (
+          {/* Objection Letters Display */}
+          {data.letters && data.letters.length > 0 && (
             <div className="space-y-4 pt-2">
-              <h3 className="font-bold text-slate-900 text-sm">Download Stored Objection Letters</h3>
+              <div className="flex items-center justify-between border-b pb-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">Generated Objection Letters</h3>
+                  <p className="text-xs text-slate-500">View, print, or download your official objection letters.</p>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-gov-blue rounded-full border border-blue-100">
+                  {data.letters.length} Letters
+                </span>
+              </div>
 
               <div className="space-y-3">
                 {data.letters.map((letter: any, idx: number) => (
                   <div
                     key={letter.letterNumber}
-                    className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-slate-50 transition-colors"
+                    className="p-4 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-slate-50/80 transition-colors shadow-sm"
                   >
-                    <div>
+                    <div className="space-y-0.5">
                       <span className="text-xs font-bold text-gov-blue block">
                         Letter {letter.letterNumber} (Version {letter.templateVersion})
                       </span>
                       <p className="font-medium text-slate-800 text-xs sm:text-sm">{letter.title}</p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <a
                         href={letter.viewUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-white text-slate-700 flex items-center gap-1"
+                        className="px-3 py-1.5 border border-slate-300 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                        title="View Letter in New Tab"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5 text-gov-blue" />
                         <span>View</span>
                       </a>
+
+                      <a
+                        href={letter.viewUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 border border-slate-300 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                        title="Open Print Dialog"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Print</span>
+                      </a>
+
                       <button
                         type="button"
                         onClick={() => handleDownloadLetter(idx)}
                         disabled={downloading === letter.letterNumber}
-                        className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                        className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>{downloading === letter.letterNumber ? 'Generating PDF...' : 'Download PDF'}</span>
+                        <span>{downloading === letter.letterNumber ? 'Downloading...' : 'Download PDF'}</span>
                       </button>
                     </div>
                   </div>
@@ -235,20 +256,8 @@ export const TrackPage: React.FC = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gov-emerald hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow disabled:opacity-50 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>{downloading === 999 ? 'Generating All PDFs...' : 'Download All Letters (PDF)'}</span>
+                  <span>{downloading === 999 ? 'Downloading All PDFs...' : 'Download All Letters (PDF)'}</span>
                 </button>
-              </div>
-            </div>
-          )}
-
-          {!data.authorized && (
-            <div className="p-4 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-900 flex items-start gap-2">
-              <Shield className="w-4 h-4 text-gov-blue shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">Privacy Protection Enabled</p>
-                <p className="text-slate-600 mt-0.5">
-                  Full personal details and direct PDF download links are sent to the registered applicant email for privacy and protection.
-                </p>
               </div>
             </div>
           )}

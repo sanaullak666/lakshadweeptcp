@@ -19,6 +19,13 @@ export async function downloadLetterAsPdf(
   serverDownloadUrl?: string
 ): Promise<void> {
   const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+
+  // Always prioritize direct server download when available for 100% complete, non-blank PDFs
+  if (serverDownloadUrl) {
+    triggerBrowserDownload(serverDownloadUrl, safeFilename);
+    return;
+  }
+
   let content = letterHtmlOrUrl;
 
   // If passed an API view or content URL, fetch HTML
@@ -31,11 +38,7 @@ export async function downloadLetterAsPdf(
       const inner = doc.querySelector('.container') || doc.querySelector('.legal-doc') || doc.body;
       content = inner.innerHTML;
     } catch (e) {
-      console.warn('[PDF Download] Failed to fetch HTML by URL, using server fallback', e);
-      if (serverDownloadUrl) {
-        triggerBrowserDownload(serverDownloadUrl, safeFilename);
-        return;
-      }
+      console.warn('[PDF Download] Failed to fetch HTML by URL', e);
     }
   }
 
@@ -49,8 +52,8 @@ export async function downloadLetterAsPdf(
   removeElements.forEach(el => el.remove());
 
   // Style container for A4 printable layout
-  container.style.position = 'absolute';
-  container.style.left = '0';
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
   container.style.top = '0';
   container.style.width = '794px'; // 210mm in pixels at 96 DPI
   container.style.maxWidth = '794px';
@@ -61,7 +64,7 @@ export async function downloadLetterAsPdf(
   container.style.fontFamily = '"Times New Roman", Times, Georgia, serif';
   container.style.fontSize = '12pt';
   container.style.lineHeight = '1.35';
-  container.style.zIndex = '-99999';
+  container.style.zIndex = '9999';
   container.style.visibility = 'visible';
   container.style.opacity = '1';
 
