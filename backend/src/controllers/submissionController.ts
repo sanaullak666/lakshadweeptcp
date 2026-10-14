@@ -51,7 +51,10 @@ export async function createSubmission(req: Request, res: Response) {
     let signatureMime = 'image/png';
     let signatureHtml = '';
 
-    const uploadsBase = path.resolve(__dirname, '../../uploads/signatures');
+    const isServerlessReq = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const uploadsBase = isServerlessReq
+      ? path.join(os.tmpdir(), 'uploads', 'signatures')
+      : path.resolve(__dirname, '../../uploads/signatures');
     if (!fs.existsSync(uploadsBase)) {
       fs.mkdirSync(uploadsBase, { recursive: true });
     }
@@ -613,7 +616,10 @@ export async function downloadBothLettersZip(req: Request, res: Response) {
       return res.status(403).json({ success: false, message: 'Unauthorized to download objection archive' });
     }
 
-    const pdfDir = path.resolve(__dirname, `../../storage/pdfs/${id}`);
+    const isServerlessReq = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const pdfDir = isServerlessReq
+      ? path.join(os.tmpdir(), 'pdfs', id)
+      : path.resolve(__dirname, `../../storage/pdfs/${id}`);
     const zipPath = path.join(pdfDir, `${id}_Objection_Letters.zip`);
 
     const [letters]: any = await pool.query(

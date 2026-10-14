@@ -59,7 +59,10 @@ app.use(async (_req: Request, _res: Response, next: NextFunction) => {
 
 // URL Normalizer for Vercel Serverless
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  if (req.url.startsWith('/api/index.ts')) {
+  const forwarded = (req.headers['x-forwarded-uri'] as string) || (req.headers['x-matched-path'] as string);
+  if (forwarded && typeof forwarded === 'string' && forwarded.startsWith('/api')) {
+    req.url = forwarded;
+  } else if (req.url.startsWith('/api/index.ts')) {
     req.url = req.url.replace('/api/index.ts', '') || '/';
   }
   next();
