@@ -36,21 +36,20 @@ export const Footer: React.FC = () => {
             </div>
           </div>
 
-          {/* Dual Letter Notice */}
+          {/* Three Letters Notice */}
           <div className="space-y-2 bg-slate-800/50 p-3.5 rounded border border-slate-700">
             <div className="flex items-center space-x-1.5 text-gov-gold font-semibold text-xs uppercase tracking-wide">
               <AlertCircle className="w-4 h-4" />
-              <span>Two Objection Letters Architecture</span>
+              <span>Three Objection Letters Architecture</span>
             </div>
             <p className="text-xs text-slate-300 leading-normal">
-              A single form submission automatically generates and timestamps two legally separate objection letters:
-              (1) Planning & Development Board Rules, and (2) Chief Town Planner Qualifications Rules.
+              A single form submission automatically generates and timestamps three legally separate objection letters:
+              (1) Planning & Development Board Rules, (2) Chief Town Planner Qualifications Rules, and (3) Planning & Development Authority Rules.
             </p>
           </div>
         </div>
 
         <div className="mt-8 pt-4 border-t border-slate-800 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-2">
-          <p>© 2026 Union Territory of Lakshadweep Public Participation System. All rights reserved.</p>
           <p>Protected by end-to-end immutability and digital audit logs.</p>
         </div>
       </div>

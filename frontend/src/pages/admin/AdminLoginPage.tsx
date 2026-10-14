@@ -5,8 +5,8 @@ import { adminLogin } from '../../services/api';
 
 export const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState<string>('admin');
-  const [password, setPassword] = useState<string>('Admin@2026!');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
@@ -38,10 +38,7 @@ export const AdminLoginPage: React.FC = () => {
           <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 border border-gov-gold/50">
             <Lock className="w-6 h-6 text-gov-gold" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">Admin & Officer Portal</h1>
-          <p className="text-xs text-sky-200 mt-1">
-            Department of Urban Development, UT of Lakshadweep
-          </p>
+          <h1 className="text-xl font-bold tracking-tight">Admin Login</h1>
         </div>
 
         {/* Form */}
@@ -61,7 +58,7 @@ export const AdminLoginPage: React.FC = () => {
               <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="admin or officer email"
+                placeholder="Enter username or email"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 required
@@ -78,7 +75,7 @@ export const AdminLoginPage: React.FC = () => {
               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="password"
-                placeholder="••••••••"
+                placeholder="Enter password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
@@ -105,12 +102,6 @@ export const AdminLoginPage: React.FC = () => {
                 </>
               )}
             </button>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 p-3 rounded text-[11px] text-slate-500 space-y-1">
-            <p className="font-semibold text-slate-700">Evaluation Default Access:</p>
-            <p>Username: <code className="bg-white px-1 py-0.5 rounded border font-mono">admin</code></p>
-            <p>Password: <code className="bg-white px-1 py-0.5 rounded border font-mono">Admin@2026!</code></p>
           </div>
         </form>
       </div>

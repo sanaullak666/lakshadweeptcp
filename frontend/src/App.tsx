@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { HomePage } from './pages/HomePage';
@@ -26,13 +26,16 @@ const AdminProtectedRoute: React.FC = () => {
 
 // Main Public Layout
 const PublicLayout: React.FC = () => {
+  const location = useLocation();
+  const isAdminLogin = location.pathname === '/admin/login';
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
       <main className="flex-1">
         <Outlet />
       </main>
-      <Footer />
+      {!isAdminLogin && <Footer />}
     </div>
   );
 };
