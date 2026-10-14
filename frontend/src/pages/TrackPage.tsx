@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, FileText, CheckCircle2, Clock, Download, Eye, Printer, Shield, AlertCircle } from 'lucide-react';
+import { Search, FileText, CheckCircle2, Clock, Eye, Printer, Shield, AlertCircle } from 'lucide-react';
 import { getSubmission } from '../services/api';
-import { downloadLetterAsPdf } from '../utils/pdfDownloader';
 
 export const TrackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -14,7 +13,6 @@ export const TrackPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [data, setData] = useState<any>(null);
-  const [downloading, setDownloading] = useState<number | null>(null);
 
   useEffect(() => {
     if (idFromUrl) {
@@ -39,48 +37,6 @@ export const TrackPage: React.FC = () => {
       setData(null);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDownloadLetter = async (letterIndex: number) => {
-    if (!data?.letters) return;
-    const l = data.letters[letterIndex];
-    if (!l) return;
-    setDownloading(l.letterNumber);
-    try {
-      const applicantName = data.submission?.fullName || data.fullName || 'Applicant';
-      const safeName = applicantName.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const sId = data.submission?.submissionId || data.submissionId || 'Submission';
-      await downloadLetterAsPdf(
-        l.finalHtml || l.viewUrl,
-        `Objection_Letter_${l.letterNumber}_${sId}_${safeName}.pdf`,
-        l.downloadUrl
-      );
-    } catch (err) {
-      console.error('Download error:', err);
-      if (l.downloadUrl) {
-        const a = document.createElement('a');
-        a.href = l.downloadUrl;
-        a.download = `Objection_Letter_${l.letterNumber}_${data.submissionId || 'Submission'}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-    } finally {
-      setDownloading(null);
-    }
-  };
-
-  const handleDownloadAll = async () => {
-    if (!data?.letters) return;
-    setDownloading(999);
-    try {
-      for (let i = 0; i < data.letters.length; i++) {
-        await handleDownloadLetter(i);
-        await new Promise(r => setTimeout(r, 600));
-      }
-    } finally {
-      setDownloading(null);
     }
   };
 
@@ -191,7 +147,7 @@ export const TrackPage: React.FC = () => {
               <div className="flex items-center justify-between border-b pb-2">
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm sm:text-base">Generated Objection Letters</h3>
-                  <p className="text-xs text-slate-500">View, print, or download your official objection letters.</p>
+                  <p className="text-xs text-slate-500">View or print your official objection letters.</p>
                 </div>
                 <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-gov-blue rounded-full border border-blue-100">
                   {data.letters.length} Letters
@@ -199,7 +155,7 @@ export const TrackPage: React.FC = () => {
               </div>
 
               <div className="space-y-3">
-                {data.letters.map((letter: any, idx: number) => (
+                {data.letters.map((letter: any) => (
                   <div
                     key={letter.letterNumber}
                     className="p-4 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-slate-50/80 transition-colors shadow-sm"
@@ -211,12 +167,12 @@ export const TrackPage: React.FC = () => {
                       <p className="font-medium text-slate-800 text-xs sm:text-sm">{letter.title}</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       <a
                         href={letter.viewUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-3 py-1.5 border border-slate-300 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                        className="px-3.5 py-1.5 border border-slate-300 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors shadow-sm"
                         title="View Letter in New Tab"
                       >
                         <Eye className="w-3.5 h-3.5 text-gov-blue" />
@@ -227,37 +183,15 @@ export const TrackPage: React.FC = () => {
                         href={letter.viewUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-3 py-1.5 border border-slate-300 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                        className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
                         title="Open Print Dialog"
                       >
-                        <Printer className="w-3.5 h-3.5 text-slate-600" />
+                        <Printer className="w-3.5 h-3.5" />
                         <span>Print</span>
                       </a>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadLetter(idx)}
-                        disabled={downloading === letter.letterNumber}
-                        className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>{downloading === letter.letterNumber ? 'Downloading...' : 'Download PDF'}</span>
-                      </button>
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="pt-2 text-right">
-                <button
-                  type="button"
-                  onClick={handleDownloadAll}
-                  disabled={downloading === 999}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gov-emerald hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow disabled:opacity-50 cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{downloading === 999 ? 'Downloading All PDFs...' : 'Download All Letters (PDF)'}</span>
-                </button>
               </div>
             </div>
           )}

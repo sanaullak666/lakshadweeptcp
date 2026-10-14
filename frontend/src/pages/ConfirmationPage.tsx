@@ -4,10 +4,8 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  Download,
   Eye,
   Printer,
-  Archive,
   ArrowRight,
   FileText,
   ShieldCheck,
@@ -15,7 +13,6 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SubmissionResult } from '../types';
-import { downloadLetterAsPdf } from '../utils/pdfDownloader';
 
 export const ConfirmationPage: React.FC = () => {
   const location = useLocation();
@@ -23,7 +20,6 @@ export const ConfirmationPage: React.FC = () => {
   const submissionResult = location.state?.submissionResult as SubmissionResult | undefined;
 
   const [copied, setCopied] = useState<boolean>(false);
-  const [downloading, setDownloading] = useState<number | null>(null);
 
   useEffect(() => {
     // Launch celebratory confetti if coming from fresh submission
@@ -62,50 +58,12 @@ export const ConfirmationPage: React.FC = () => {
     );
   }
 
-  const { submissionId, submissionDate, applicant, letters, zipDownloadUrl } = submissionResult;
+  const { submissionId, submissionDate, applicant, letters } = submissionResult;
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(submissionId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDownloadLetter = async (letterIndex: number) => {
-    const l = letters[letterIndex];
-    if (!l) return;
-    setDownloading(l.letterNumber);
-    try {
-      const safeName = (applicant?.fullName || 'Applicant').replace(/[^a-zA-Z0-9_-]/g, '_');
-      await downloadLetterAsPdf(
-        l.finalHtml || l.viewUrl,
-        `Objection_Letter_${l.letterNumber}_${submissionId}_${safeName}.pdf`,
-        l.downloadUrl
-      );
-    } catch (err) {
-      console.error('Download error:', err);
-      if (l.downloadUrl) {
-        const a = document.createElement('a');
-        a.href = l.downloadUrl;
-        a.download = `Objection_Letter_${l.letterNumber}_${submissionId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-    } finally {
-      setDownloading(null);
-    }
-  };
-
-  const handleDownloadAll = async () => {
-    setDownloading(999);
-    try {
-      for (let i = 0; i < letters.length; i++) {
-        await handleDownloadLetter(i);
-        await new Promise(r => setTimeout(r, 600));
-      }
-    } finally {
-      setDownloading(null);
-    }
   };
 
   return (
@@ -181,28 +139,20 @@ export const ConfirmationPage: React.FC = () => {
                 href={letters[0]?.viewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors shadow-sm"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-3.5 h-3.5 text-gov-blue" />
                 <span>View</span>
               </a>
               <a
                 href={letters[0]?.viewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Print</span>
               </a>
-              <button
-                onClick={() => handleDownloadLetter(0)}
-                disabled={downloading === 1}
-                className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>{downloading === 1 ? 'Generating...' : 'Download PDF'}</span>
-              </button>
             </div>
           </div>
 
@@ -228,28 +178,20 @@ export const ConfirmationPage: React.FC = () => {
                 href={letters[1]?.viewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors shadow-sm"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-3.5 h-3.5 text-gov-blue" />
                 <span>View</span>
               </a>
               <a
                 href={letters[1]?.viewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Print</span>
               </a>
-              <button
-                onClick={() => handleDownloadLetter(1)}
-                disabled={downloading === 2}
-                className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>{downloading === 2 ? 'Generating...' : 'Download PDF'}</span>
-              </button>
             </div>
           </div>
 
@@ -275,54 +217,22 @@ export const ConfirmationPage: React.FC = () => {
                 href={letters[2]?.viewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors shadow-sm"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-3.5 h-3.5 text-gov-blue" />
                 <span>View</span>
               </a>
               <a
                 href={letters[2]?.viewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Print</span>
               </a>
-              <button
-                onClick={() => handleDownloadLetter(2)}
-                disabled={downloading === 3}
-                className="px-3.5 py-1.5 bg-gov-blue hover:bg-gov-navy text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>{downloading === 3 ? 'Generating...' : 'Download PDF'}</span>
-              </button>
             </div>
           </div>
-        </div>
-
-        {/* Download All Letters Button */}
-        <div className="bg-slate-100 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-white border border-slate-300 flex items-center justify-center text-gov-blue shadow-sm">
-              <Archive className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-bold text-slate-900 text-sm">Download All 3 Letters (PDF)</p>
-              <p className="text-xs text-slate-500">
-                Download all 3 official legal PDFs with your personal information and signature.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={handleDownloadAll}
-            disabled={downloading === 999}
-            className="w-full sm:w-auto px-5 py-2.5 bg-gov-emerald hover:bg-emerald-700 text-white font-bold rounded-lg text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow disabled:opacity-50 cursor-pointer"
-          >
-            <Download className="w-4 h-4" />
-            <span>{downloading === 999 ? 'Generating All...' : 'Download All 3 Letters'}</span>
-          </button>
         </div>
       </div>
 
