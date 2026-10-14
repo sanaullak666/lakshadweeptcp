@@ -11,9 +11,18 @@ import {
   FileText,
   AlertCircle,
   Archive,
-  RefreshCw
+  RefreshCw,
+  Edit2,
+  Trash2,
+  X
 } from 'lucide-react';
-import { getSubmissionsList, updateSubmissionStatus, getExportCsvUrl } from '../../services/api';
+import {
+  getSubmissionsList,
+  updateSubmissionStatus,
+  getExportCsvUrl,
+  updateSubmission,
+  deleteSubmission
+} from '../../services/api';
 import { SubmissionListItem, ISLANDS_LIST } from '../../types';
 
 export const AdminSubmissionsPage: React.FC = () => {
@@ -35,6 +44,27 @@ export const AdminSubmissionsPage: React.FC = () => {
   const [newStatus, setNewStatus] = useState<string>('Submitted');
   const [statusRemarks, setStatusRemarks] = useState<string>('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
+
+  // Edit Submission Modal State
+  const [editingSubmission, setEditingSubmission] = useState<SubmissionListItem | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    fullName: '',
+    relationship: 'Son of',
+    parentSpouseName: '',
+    houseName: '',
+    island: 'Kavaratti',
+    pinCode: '682555',
+    phone: '',
+    email: '',
+    place: '',
+    submissionDate: '',
+    status: 'Submitted'
+  });
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+
+  // Delete Submission Modal State
+  const [deletingSubmission, setDeletingSubmission] = useState<SubmissionListItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -80,6 +110,51 @@ export const AdminSubmissionsPage: React.FC = () => {
       alert(err.message || 'Failed to update status');
     } finally {
       setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleStartEdit = (sub: SubmissionListItem) => {
+    setEditingSubmission(sub);
+    setEditFormData({
+      fullName: sub.full_name || '',
+      relationship: sub.relationship || 'Son of',
+      parentSpouseName: sub.parent_spouse_name || '',
+      houseName: sub.house_name || '',
+      island: sub.island || 'Kavaratti',
+      pinCode: sub.pin_code || '682555',
+      phone: sub.phone || '',
+      email: sub.email || '',
+      place: sub.place || '',
+      submissionDate: sub.submission_date || '',
+      status: sub.status || 'Submitted'
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSubmission) return;
+    setIsSavingEdit(true);
+    try {
+      await updateSubmission(editingSubmission.submission_id, editFormData);
+      setEditingSubmission(null);
+      fetchSubmissions();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update submission response');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingSubmission) return;
+    setIsDeleting(true);
+    try {
+      await deleteSubmission(deletingSubmission.submission_id);
+      setDeletingSubmission(null);
+      fetchSubmissions();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete submission');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -338,6 +413,22 @@ export const AdminSubmissionsPage: React.FC = () => {
                             >
                               Status
                             </button>
+                            <button
+                              onClick={() => handleStartEdit(sub)}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded text-[11px] font-semibold transition-colors"
+                              title="Edit Response Details"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => setDeletingSubmission(sub)}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 rounded text-[11px] font-semibold transition-colors"
+                              title="Delete Submission Permanently"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -403,16 +494,32 @@ export const AdminSubmissionsPage: React.FC = () => {
                         <span>ZIP</span>
                       </a>
                     </div>
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                      <button
-                        onClick={() => {
-                          setSelectedSubmission(sub);
-                          setNewStatus(sub.status);
-                        }}
-                        className="px-3 py-1 border border-slate-300 rounded text-xs font-semibold text-slate-700"
-                      >
-                        Status
-                      </button>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => {
+                            setSelectedSubmission(sub);
+                            setNewStatus(sub.status);
+                          }}
+                          className="px-2.5 py-1 border border-slate-300 rounded text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Status
+                        </button>
+                        <button
+                          onClick={() => handleStartEdit(sub)}
+                          className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold flex items-center gap-1 hover:bg-indigo-100"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => setDeletingSubmission(sub)}
+                          className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs font-semibold flex items-center gap-1 hover:bg-red-100"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                       <Link
                         to={`/admin/submissions/${sub.submission_id}`}
                         className="px-3 py-1 bg-gov-blue text-white rounded text-xs font-semibold flex items-center gap-1"
@@ -513,6 +620,288 @@ export const AdminSubmissionsPage: React.FC = () => {
                 className="px-4 py-1.5 text-xs bg-gov-blue hover:bg-gov-navy text-white font-bold rounded-lg transition-colors"
               >
                 {isUpdatingStatus ? 'Saving...' : 'Update Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Submission Modal */}
+      {editingSubmission && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 my-8">
+            <div className="flex justify-between items-start border-b pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">
+                  Edit Submission Response: <span className="font-mono text-gov-blue">{editingSubmission.submission_id}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Update applicant and response details. Updating will automatically regenerate the final objection letters.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSubmission(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveEdit();
+              }}
+              className="space-y-4 pt-1"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                {/* Full Name */}
+                <div className="md:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Applicant Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.fullName}
+                    onChange={e => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Relationship */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Relationship <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. S/o, D/o, W/o"
+                    value={editFormData.relationship}
+                    onChange={e => setEditFormData({ ...editFormData, relationship: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Parent / Spouse Name */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Parent / Spouse Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.parentSpouseName}
+                    onChange={e => setEditFormData({ ...editFormData, parentSpouseName: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Mobile Phone */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Mobile Number (10 digits) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    value={editFormData.phone}
+                    onChange={e => setEditFormData({ ...editFormData, phone: e.target.value.replace(/\D/g, '') })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Email Address */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editFormData.email}
+                    onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Island */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Island <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editFormData.island}
+                    onChange={e => setEditFormData({ ...editFormData, island: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue bg-white"
+                  >
+                    {ISLANDS_LIST.map(isl => (
+                      <option key={isl} value={isl}>
+                        {isl}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* House Name */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    House Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.houseName}
+                    onChange={e => setEditFormData({ ...editFormData, houseName: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* PIN Code */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    PIN Code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={editFormData.pinCode}
+                    onChange={e => setEditFormData({ ...editFormData, pinCode: e.target.value.replace(/\D/g, '') })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Place */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Place <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.place}
+                    onChange={e => setEditFormData({ ...editFormData, place: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Submission Date */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Submission Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="YYYY-MM-DD or DD/MM/YYYY"
+                    value={editFormData.submissionDate}
+                    onChange={e => setEditFormData({ ...editFormData, submissionDate: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue"
+                  />
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Status <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editFormData.status}
+                    onChange={e => setEditFormData({ ...editFormData, status: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue bg-white"
+                  >
+                    <option value="Submitted">Submitted</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Reviewed">Reviewed</option>
+                    <option value="Forwarded">Forwarded to Department</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setEditingSubmission(null)}
+                  className="px-4 py-2 text-xs border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 text-xs bg-gov-blue hover:bg-gov-navy text-white font-bold rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingSubmission && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl border border-red-200 max-w-md w-full p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-red-100 text-red-600 rounded-lg shrink-0 mt-0.5">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-slate-900 text-base">
+                  Delete Submission Permanently?
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Are you sure you want to delete submission <strong className="font-mono text-red-600">{deletingSubmission.submission_id}</strong>?
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-50/50 border border-red-200 rounded-lg p-3 text-xs text-slate-700 space-y-1">
+              <p><strong>Applicant:</strong> {deletingSubmission.full_name}</p>
+              <p><strong>Mobile:</strong> {deletingSubmission.phone}</p>
+              <p><strong>Island:</strong> {deletingSubmission.island} ({deletingSubmission.house_name})</p>
+              <p className="text-red-700 font-medium pt-1 text-[11px]">
+                ⚠️ Warning: This will permanently remove this record, objection letters, signatures, and notes from the database. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button
+                type="button"
+                onClick={() => setDeletingSubmission(null)}
+                className="px-4 py-2 text-xs border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Permanently</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

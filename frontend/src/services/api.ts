@@ -216,6 +216,26 @@ export async function addAdminNote(id: string, note: string) {
   return parseJson<any>(res);
 }
 
+export async function updateSubmission(id: string, data: any) {
+  const res = await fetch(`${API_BASE}/admin/submissions/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify(data)
+  });
+  return parseJson<any>(res);
+}
+
+export async function deleteSubmission(id: string) {
+  const res = await fetch(`${API_BASE}/admin/submissions/${id}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeaders() }
+  });
+  return parseJson<any>(res);
+}
+
 export function getExportCsvUrl(island?: string, status?: string): string {
   const query = new URLSearchParams();
   if (island && island !== 'All') query.set('island', island);

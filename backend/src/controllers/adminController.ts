@@ -2,9 +2,11 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'path';
+import fs from 'fs';
 import pool from '../config/database';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../services/auditService';
+import { replacePlaceholders } from '../services/templateService';
 
 function getClientIp(req: Request): string | undefined {
   const ip = req.ip || req.socket.remoteAddress;
@@ -539,5 +541,175 @@ export async function updateAppSetting(req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ success: true, message: `Setting ${key} updated successfully` });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: 'Failed to update setting' });
+  }
+}
+
+export async function updateSubmission(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const {
+      fullName,
+      relationship,
+      parentSpouseName,
+      houseName,
+      island,
+      pinCode,
+      email,
+      phone,
+      place,
+      submissionDate,
+      status
+    } = req.body;
+
+    const [subs]: any = await pool.query('SELECT * FROM submissions WHERE submission_id = ?', [id]);
+    if (subs.length === 0) {
+      return res.status(404).json({ success: false, message: 'Submission not found' });
+    }
+    const current = subs[0];
+
+    const updatedFullName = fullName !== undefined ? String(fullName).trim() : current.full_name;
+    const updatedRelationship = relationship !== undefined ? String(relationship).trim() : current.relationship;
+    const updatedParentSpouse = parentSpouseName !== undefined ? String(parentSpouseName).trim() : current.parent_spouse_name;
+    const updatedHouseName = houseName !== undefined ? String(houseName).trim() : current.house_name;
+    const updatedIsland = island !== undefined ? String(island).trim() : current.island;
+    const updatedPinCode = pinCode !== undefined ? String(pinCode).trim() : current.pin_code;
+    const updatedEmail = email !== undefined ? (String(email).trim().toLowerCase() || null) : current.email;
+    const updatedPhone = phone !== undefined ? String(phone).replace(/\D/g, '').trim() : current.phone;
+    const updatedPlace = place !== undefined ? String(place).trim() : current.place;
+    const updatedDate = submissionDate !== undefined ? String(submissionDate).trim() : current.submission_date;
+    const updatedStatus = status !== undefined ? String(status).trim() : current.status;
+
+    await pool.query(`
+      UPDATE submissions SET
+        full_name = ?,
+        relationship = ?,
+        parent_spouse_name = ?,
+        house_name = ?,
+        island = ?,
+        pin_code = ?,
+        email = ?,
+        phone = ?,
+        place = ?,
+        submission_date = ?,
+        status = ?,
+        updated_at = NOW()
+      WHERE submission_id = ?
+    `, [
+      updatedFullName,
+      updatedRelationship,
+      updatedParentSpouse,
+      updatedHouseName,
+      updatedIsland,
+      updatedPinCode,
+      updatedEmail,
+      updatedPhone,
+      updatedPlace,
+      updatedDate,
+      updatedStatus,
+      id
+    ]);
+
+    // Re-render objection letters final_html if text changed
+    try {
+      const [templates]: any = await pool.query('SELECT * FROM letter_templates WHERE is_active = TRUE ORDER BY letter_number ASC');
+      const [signatures]: any = await pool.query('SELECT * FROM signatures WHERE submission_id = ? LIMIT 1', [id]);
+      let sigHtml = '';
+      if (signatures.length > 0 && signatures[0].file_path && fs.existsSync(signatures[0].file_path)) {
+        const sigBuf = fs.readFileSync(signatures[0].file_path);
+        const base64Data = `data:${signatures[0].mime_type};base64,${sigBuf.toString('base64')}`;
+        sigHtml = `<img src="${base64Data}" alt="" style="max-height: 55px; max-width: 180px; object-fit: contain; vertical-align: middle;" />`;
+      }
+
+      const replacementData = {
+        fullName: updatedFullName,
+        relationship: updatedRelationship,
+        parentSpouseName: updatedParentSpouse,
+        houseName: updatedHouseName,
+        island: updatedIsland,
+        pinCode: updatedPinCode,
+        email: updatedEmail || 'Nil',
+        phone: updatedPhone,
+        place: updatedPlace,
+        date: updatedDate,
+        signatureHtml: sigHtml
+      };
+
+      for (const tmpl of templates) {
+        const finalHtml = replacePlaceholders(tmpl.content_html, replacementData);
+        await pool.query(
+          'UPDATE objection_letters SET final_html = ? WHERE submission_id = ? AND letter_number = ?',
+          [finalHtml, id, tmpl.letter_number]
+        );
+      }
+    } catch (tmplErr) {
+      console.warn('[updateSubmission] Re-render warning:', tmplErr);
+    }
+
+    await logAudit({
+      adminUsername: req.admin?.username,
+      action: 'UPDATE_SUBMISSION',
+      targetType: 'Submission',
+      targetId: String(id),
+      details: `Submission ${id} details updated by ${req.admin?.username}`,
+      ipAddress: getClientIp(req)
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Submission ${id} updated successfully`
+    });
+
+  } catch (err: any) {
+    console.error('[updateSubmission Error]:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to update submission' });
+  }
+}
+
+export async function deleteSubmission(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const [subs]: any = await pool.query('SELECT * FROM submissions WHERE submission_id = ?', [id]);
+    if (subs.length === 0) {
+      return res.status(404).json({ success: false, message: 'Submission not found' });
+    }
+    const sub = subs[0];
+
+    // Delete signature file from disk if present
+    try {
+      const [sigs]: any = await pool.query('SELECT file_path FROM signatures WHERE submission_id = ?', [id]);
+      for (const sig of sigs) {
+        if (sig.file_path && fs.existsSync(sig.file_path)) {
+          fs.unlinkSync(sig.file_path);
+        }
+      }
+    } catch (fErr) {
+      console.warn('[deleteSubmission] File cleanup warning:', fErr);
+    }
+
+    // Explicitly delete from all related child tables
+    await pool.query('DELETE FROM signatures WHERE submission_id = ?', [id]);
+    await pool.query('DELETE FROM objection_letters WHERE submission_id = ?', [id]);
+    await pool.query('DELETE FROM submission_status_history WHERE submission_id = ?', [id]);
+    await pool.query('DELETE FROM admin_notes WHERE submission_id = ?', [id]);
+    await pool.query('DELETE FROM submissions WHERE submission_id = ?', [id]);
+
+    await logAudit({
+      adminUsername: req.admin?.username,
+      action: 'DELETE_SUBMISSION',
+      targetType: 'Submission',
+      targetId: String(id),
+      details: `Submission ${id} (${sub.full_name}, ${sub.phone}) was deleted by admin ${req.admin?.username}`,
+      ipAddress: getClientIp(req)
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Submission ${id} has been permanently deleted from database.`
+    });
+
+  } catch (err: any) {
+    console.error('[deleteSubmission Error]:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to delete submission' });
   }
 }

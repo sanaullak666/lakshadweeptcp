@@ -7,6 +7,8 @@ import {
   getSubmissionDetail,
   updateSubmissionStatus,
   addAdminNote,
+  updateSubmission,
+  deleteSubmission,
   exportSubmissionsCsv,
   getAuditLogs,
   updateAppSetting
@@ -27,6 +29,8 @@ router.get('/dashboard-stats', authenticateAdmin, getDashboardStats);
 // Submissions management
 router.get('/submissions', authenticateAdmin, getSubmissions);
 router.get('/submissions/:id', authenticateAdmin, getSubmissionDetail);
+router.put('/submissions/:id', authenticateAdmin, updateSubmission);
+router.delete('/submissions/:id', authenticateAdmin, deleteSubmission);
 router.patch('/submissions/:id/status', authenticateAdmin, updateSubmissionStatus);
 router.post('/submissions/:id/notes', authenticateAdmin, addAdminNote);
 
