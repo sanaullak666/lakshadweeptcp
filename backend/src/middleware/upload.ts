@@ -38,7 +38,7 @@ const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterC
 export const signatureUpload = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5 MB max
+    fileSize: 150 * 1024 // 150 KB max
   },
   fileFilter
 });

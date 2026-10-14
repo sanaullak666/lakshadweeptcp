@@ -222,9 +222,10 @@ export const SignatureCapture: React.FC<SignatureCaptureProps> = ({
       return;
     }
 
-    // Validate size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('File is too large. Signature image must be smaller than 5 MB.');
+    // Validate size (150 KB max)
+    if (file.size > 150 * 1024) {
+      const sizeKb = Math.round(file.size / 1024);
+      setUploadError(`File is too large (${sizeKb} KB). Signature image must be smaller than 150 KB.`);
       return;
     }
 
@@ -328,13 +329,13 @@ export const SignatureCapture: React.FC<SignatureCaptureProps> = ({
       {signatureType === 'uploaded' && (
         <div className="space-y-3">
           <p className="text-xs text-slate-500">
-            Upload a photo or scanned copy of your handwritten signature. Supported formats: PNG, JPG, JPEG (Max 5MB).
+            Upload a photo or scanned copy of your handwritten signature. Supported formats: PNG, JPG, JPEG (Max 150 KB).
           </p>
 
           <label className="border-2 border-dashed border-slate-300 hover:border-gov-blue hover:bg-sky-50/50 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer transition-colors bg-white">
             <Upload className="w-8 h-8 text-slate-400 mb-2" />
             <span className="text-sm font-semibold text-slate-700">Click to browse or drag & drop</span>
-            <span className="text-xs text-slate-500 mt-1">PNG, JPG, or JPEG</span>
+            <span className="text-xs text-slate-500 mt-1">PNG, JPG, or JPEG (Max 150 KB)</span>
             <input
               type="file"
               accept="image/png,image/jpeg,image/jpg"

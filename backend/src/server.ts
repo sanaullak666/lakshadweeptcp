@@ -116,6 +116,13 @@ if (fs.existsSync(frontendDist)) {
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[Server Error Handler]:', err);
 
+  if (err && (err.code === 'LIMIT_FILE_SIZE' || err.message?.includes('File too large'))) {
+    return res.status(400).json({
+      success: false,
+      message: 'Signature image is too large. Maximum allowed file size is 150 KB.'
+    });
+  }
+
   const status = err.status || err.statusCode || 500;
   const message = err.message || 'An unexpected internal error occurred.';
 

@@ -72,6 +72,12 @@ export async function createSubmission(req: Request, res: Response) {
       fs.writeFileSync(signatureFilePath, buffer);
       signatureHtml = `<img src="${signatureData}" alt="" style="max-height: 55px; max-width: 180px; object-fit: contain; vertical-align: middle;" />`;
     } else if (req.file) {
+      if (req.file.size > 150 * 1024) {
+        return res.status(400).json({
+          success: false,
+          message: 'Signature file size exceeds the 150 KB limit. Please upload a smaller image.'
+        });
+      }
       signatureFilePath = req.file.path;
       signatureMime = req.file.mimetype;
       const fileBuffer = fs.readFileSync(signatureFilePath);

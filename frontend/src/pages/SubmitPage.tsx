@@ -131,8 +131,13 @@ export const SubmitPage: React.FC = () => {
     const errs: Record<string, string> = {};
     if (formData.signatureType === 'drawn' && !formData.signatureData) {
       errs.signature = 'Please draw your handwritten signature on the canvas.';
-    } else if (formData.signatureType === 'uploaded' && !formData.signatureFile) {
-      errs.signature = 'Please upload an image of your signature.';
+    } else if (formData.signatureType === 'uploaded') {
+      if (!formData.signatureFile) {
+        errs.signature = 'Please upload an image of your signature.';
+      } else if (formData.signatureFile.size > 150 * 1024) {
+        const sizeKb = Math.round(formData.signatureFile.size / 1024);
+        errs.signature = `Signature file size is ${sizeKb} KB. Maximum allowed size is 150 KB. Please upload a smaller image.`;
+      }
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
