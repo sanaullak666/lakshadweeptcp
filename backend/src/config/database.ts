@@ -5,11 +5,17 @@ import mysql from 'mysql2/promise';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+const DEFAULT_SUPABASE_URL =
+  'postgresql://postgres.ktbltkagspmzwxaoyaha:5mcHBvnk3qG7BVnG@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+
 const isPostgres =
   Boolean(process.env.DATABASE_URL) ||
   process.env.DB_TYPE === 'postgres' ||
   process.env.DB_PORT === '5432' ||
-  (process.env.DB_HOST && process.env.DB_HOST.includes('supabase'));
+  (process.env.DB_HOST && process.env.DB_HOST.includes('supabase')) ||
+  process.env.VERCEL === '1' ||
+  Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
+  !process.env.DB_HOST;
 
 function translatePgQuery(sql: string, params: any[] = []): { sql: string; params: any[]; isInsert: boolean } {
   let paramIdx = 1;
@@ -90,7 +96,9 @@ if (isPostgres) {
 
   const connectionString =
     process.env.DATABASE_URL ||
-    `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || '5432'}/${process.env.DB_NAME || 'postgres'}`;
+    (process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_HOST
+      ? `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || '5432'}/${process.env.DB_NAME || 'postgres'}`
+      : DEFAULT_SUPABASE_URL);
 
   const pgPool = new PgPool({
     connectionString,

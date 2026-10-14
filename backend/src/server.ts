@@ -43,20 +43,55 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serverless database initialization middleware (lazy cold-start init)
+let isDbInitialized = false;
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  if (!isDbInitialized) {
+    try {
+      await initializeDatabase();
+      isDbInitialized = true;
+    } catch (error) {
+      console.error('[DB Init Error in Serverless]:', error);
+    }
+  }
+  next();
+});
+
+// URL Normalizer for Vercel Serverless
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  if (req.url.startsWith('/api/index.ts')) {
+    req.url = req.url.replace('/api/index.ts', '') || '/';
+  }
+  next();
+});
+
 // Static uploads serving
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
-// API Routes
-app.use('/api/submissions', submissionRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/templates', templateRoutes);
-
 // Health check
-app.get('/api/health', (_req: Request, res: Response) => {
+app.get(['/api/health', '/health'], (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     service: 'Lakshadweep Objections Portal API'
+  });
+});
+
+// API Routes (mount on both /api/* and root /* for flexible serverless rewrites)
+app.use('/api/submissions', submissionRoutes);
+app.use('/submissions', submissionRoutes);
+
+app.use('/api/admin', adminRoutes);
+app.use('/admin', adminRoutes);
+
+app.use('/api/templates', templateRoutes);
+app.use('/templates', templateRoutes);
+
+// Fallback JSON 404 for API endpoints
+app.all(['/api', '/api/*'], (req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: `API endpoint not found: ${req.method} ${req.originalUrl || req.url}`
   });
 });
 
@@ -84,20 +119,6 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     message,
     ...(process.env.NODE_ENV === 'development' ? { debug: err.stack } : {})
   });
-});
-
-// Serverless database initialization middleware
-let isDbInitialized = false;
-app.use(async (_req: Request, _res: Response, next: NextFunction) => {
-  if (!isDbInitialized) {
-    try {
-      await initializeDatabase();
-      isDbInitialized = true;
-    } catch (error) {
-      console.error('[DB Init Error in Serverless]:', error);
-    }
-  }
-  next();
 });
 
 // Start Server and Initialize Database (for traditional long-running instances)
