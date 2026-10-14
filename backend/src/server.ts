@@ -62,6 +62,8 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   const forwarded = (req.headers['x-forwarded-uri'] as string) || (req.headers['x-matched-path'] as string);
   if (forwarded && typeof forwarded === 'string' && forwarded.startsWith('/api')) {
     req.url = forwarded;
+  } else if (req.query && (req.query as any).__path) {
+    req.url = `/api/${(req.query as any).__path}`;
   } else if (req.url.startsWith('/api/index.ts')) {
     req.url = req.url.replace('/api/index.ts', '') || '/';
   }
