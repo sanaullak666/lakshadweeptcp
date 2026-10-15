@@ -667,7 +667,6 @@ export async function getLetterHtml(req: Request, res: Response) {
           <span style="font-family: sans-serif; font-size: 13px; color: #64748b;">Submission ID: <strong>${id}</strong></span>
           <div>
             <button onclick="window.print()" class="btn">🖨️ Print Letter</button>
-            <a href="/api/submissions/${id}/letters/${letterNumber}/download?token=${subs[0].access_token || ''}" download class="btn" style="background: #0284c7;">📥 Download PDF</a>
           </div>
         </div>
         <div class="container">
