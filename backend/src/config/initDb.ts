@@ -296,14 +296,14 @@ export async function initializeDatabase() {
     }
 
     // Seed default admin if not exists
-    const [existingAdmins]: any = await connection.query('SELECT id FROM admins WHERE username = ? OR email = ?', ['lakshadweepstudentsassociation@gmail.com', 'lakshadweepstudentsassociation@gmail.com']);
+    const [existingAdmins]: any = await connection.query('SELECT id FROM admins WHERE username = ? OR email = ?', ['lakstudentsassociation@gmail.com', 'lakstudentsassociation@gmail.com']);
     if (!existingAdmins || existingAdmins.length === 0) {
       const passwordHash = await bcrypt.hash('LSA@CC#2026', 10);
       await connection.query(`
         INSERT INTO admins (username, email, password_hash, full_name, role)
         VALUES (?, ?, ?, ?, ?)
-      `, ['lakshadweepstudentsassociation@gmail.com', 'lakshadweepstudentsassociation@gmail.com', passwordHash, 'Lakshadweep Students Association', 'superadmin']);
-      console.log('[Database] Default admin created (username: lakshadweepstudentsassociation@gmail.com)');
+      `, ['lakstudentsassociation@gmail.com', 'lakstudentsassociation@gmail.com', passwordHash, 'Lakshadweep Students Association', 'superadmin']);
+      console.log('[Database] Default admin created (username: lakstudentsassociation@gmail.com)');
     }
 
     // Seed Letter 1 Template if not exists
