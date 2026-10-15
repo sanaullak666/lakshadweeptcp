@@ -129,7 +129,7 @@ export const SubmitPage: React.FC = () => {
     setFormData(prev => ({
       ...prev,
       island,
-      place: prev.place ? prev.place : island
+      place: prev.place ? prev.place : island.toUpperCase()
     }));
     if (errors.island) setErrors(prev => ({ ...prev, island: '' }));
   };
@@ -343,10 +343,10 @@ export const SubmitPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Sanaulla K / Mohammed Kasim"
+                  placeholder="E.G. SANAULLA K / MOHAMMED KASIM"
                   value={formData.fullName}
-                  onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue ${
+                  onChange={e => setFormData({ ...formData, fullName: e.target.value.toUpperCase() })}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg uppercase focus:outline-none focus:ring-2 focus:ring-gov-blue ${
                     errors.fullName ? 'border-red-400 bg-red-50/30' : 'border-slate-300'
                   }`}
                 />
@@ -375,10 +375,10 @@ export const SubmitPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Cheriyakoya P / Attakoya"
+                  placeholder="E.G. CHERIYAKOYA P / ATTAKOYA"
                   value={formData.parentSpouseName}
-                  onChange={e => setFormData({ ...formData, parentSpouseName: e.target.value })}
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue ${
+                  onChange={e => setFormData({ ...formData, parentSpouseName: e.target.value.toUpperCase() })}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg uppercase focus:outline-none focus:ring-2 focus:ring-gov-blue ${
                     errors.parentSpouseName ? 'border-red-400 bg-red-50/30' : 'border-slate-300'
                   }`}
                 />
@@ -394,10 +394,10 @@ export const SubmitPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Pandaram House / Beach View"
+                  placeholder="E.G. PANDARAM HOUSE / BEACH VIEW"
                   value={formData.houseName}
-                  onChange={e => setFormData({ ...formData, houseName: e.target.value })}
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue ${
+                  onChange={e => setFormData({ ...formData, houseName: e.target.value.toUpperCase() })}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg uppercase focus:outline-none focus:ring-2 focus:ring-gov-blue ${
                     errors.houseName ? 'border-red-400 bg-red-50/30' : 'border-slate-300'
                   }`}
                 />
@@ -517,7 +517,7 @@ export const SubmitPage: React.FC = () => {
                   value={formData.email}
                   onBlur={handleEmailBlur}
                   onChange={e => {
-                    setFormData({ ...formData, email: e.target.value });
+                    setFormData({ ...formData, email: e.target.value.toLowerCase() });
                     if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
                     if (duplicateInfo?.field === 'email') setDuplicateInfo(null);
                   }}
@@ -575,10 +575,10 @@ export const SubmitPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Kavaratti / Amini / Agatti"
+                  placeholder="E.G. KAVARATTI / AMINI / AGATTI"
                   value={formData.place}
-                  onChange={e => setFormData({ ...formData, place: e.target.value })}
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gov-blue ${
+                  onChange={e => setFormData({ ...formData, place: e.target.value.toUpperCase() })}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg uppercase focus:outline-none focus:ring-2 focus:ring-gov-blue ${
                     errors.place ? 'border-red-400 bg-red-50/30' : 'border-slate-300'
                   }`}
                 />
