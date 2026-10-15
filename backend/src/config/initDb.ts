@@ -296,14 +296,14 @@ export async function initializeDatabase() {
     }
 
     // Seed default admin if not exists
-    const [existingAdmins]: any = await connection.query('SELECT id FROM admins WHERE username = ?', ['admin']);
+    const [existingAdmins]: any = await connection.query('SELECT id FROM admins WHERE username = ? OR email = ?', ['lakshadweepstudentsassociation@gmail.com', 'lakshadweepstudentsassociation@gmail.com']);
     if (!existingAdmins || existingAdmins.length === 0) {
-      const passwordHash = await bcrypt.hash('Admin@2026!', 10);
+      const passwordHash = await bcrypt.hash('LSA@CC#2026', 10);
       await connection.query(`
         INSERT INTO admins (username, email, password_hash, full_name, role)
         VALUES (?, ?, ?, ?, ?)
-      `, ['admin', 'admin@lakshadweep.gov.in', passwordHash, 'System Administrator', 'superadmin']);
-      console.log('[Database] Default admin created (username: admin, email: admin@lakshadweep.gov.in)');
+      `, ['lakshadweepstudentsassociation@gmail.com', 'lakshadweepstudentsassociation@gmail.com', passwordHash, 'Lakshadweep Students Association', 'superadmin']);
+      console.log('[Database] Default admin created (username: lakshadweepstudentsassociation@gmail.com)');
     }
 
     // Seed Letter 1 Template if not exists
