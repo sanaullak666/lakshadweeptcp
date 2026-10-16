@@ -172,9 +172,9 @@ export async function getSubmissions(req: AuthenticatedRequest, res: Response) {
     const params: any[] = [];
 
     if (search) {
-      conditions.push('(submission_id LIKE ? OR full_name LIKE ? OR house_name LIKE ? OR phone LIKE ? OR email LIKE ?)');
+      conditions.push('(submission_id LIKE ? OR original_submission_id LIKE ? OR full_name LIKE ? OR house_name LIKE ? OR phone LIKE ? OR email LIKE ?)');
       const term = `%${search}%`;
-      params.push(term, term, term, term, term);
+      params.push(term, term, term, term, term, term);
     }
 
     if (island && island !== 'All') {
@@ -242,14 +242,18 @@ export async function getSubmissionDetail(req: AuthenticatedRequest, res: Respon
   try {
     const { id } = req.params;
 
-    const [subs]: any = await pool.query('SELECT * FROM submissions WHERE submission_id = ?', [id]);
+    const [subs]: any = await pool.query(
+      'SELECT * FROM submissions WHERE submission_id = ? OR original_submission_id = ? ORDER BY id DESC',
+      [id, id]
+    );
     if (subs.length === 0) {
       return res.status(404).json({ success: false, message: 'Submission not found' });
     }
     const sub = subs[0];
+    const actualSubId = sub.submission_id;
 
     // Fetch signature
-    const [sigs]: any = await pool.query('SELECT * FROM signatures WHERE submission_id = ? LIMIT 1', [id]);
+    const [sigs]: any = await pool.query('SELECT * FROM signatures WHERE submission_id = ? LIMIT 1', [actualSubId]);
     let signatureUrl = '';
     if (sigs.length > 0) {
       const sig = sigs[0];
@@ -260,19 +264,19 @@ export async function getSubmissionDetail(req: AuthenticatedRequest, res: Respon
     // Fetch objection letters (Both Letter 1 and Letter 2)
     const [letters]: any = await pool.query(
       'SELECT id, letter_number, template_version, letter_title, final_html, created_at FROM objection_letters WHERE submission_id = ? ORDER BY letter_number ASC',
-      [id]
+      [actualSubId]
     );
 
     // Fetch status history
     const [history]: any = await pool.query(
       'SELECT * FROM submission_status_history WHERE submission_id = ? ORDER BY id ASC',
-      [id]
+      [actualSubId]
     );
 
     // Fetch internal admin notes
     const [notes]: any = await pool.query(
       'SELECT * FROM admin_notes WHERE submission_id = ? ORDER BY id DESC',
-      [id]
+      [actualSubId]
     );
 
     await logAudit({

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, FileText, CheckCircle2, Clock, Eye, Printer, Shield, AlertCircle } from 'lucide-react';
+import { Search, FileText, CheckCircle2, Clock, Eye, Printer, Shield, AlertCircle, Mail, Copy, Check, Send } from 'lucide-react';
 import { getSubmission } from '../services/api';
 
 export const TrackPage: React.FC = () => {
@@ -13,6 +13,7 @@ export const TrackPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [data, setData] = useState<any>(null);
+  const [copiedEmail, setCopiedEmail] = useState<boolean>(false);
 
   useEffect(() => {
     if (idFromUrl) {
@@ -144,6 +145,40 @@ export const TrackPage: React.FC = () => {
           {/* Objection Letters Display */}
           {data.letters && data.letters.length > 0 && (
             <div className="space-y-4 pt-2">
+              {/* Statutory Email Submission Reminder */}
+              <div className="bg-amber-50/85 border border-amber-300 rounded-xl p-4 space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                  <Mail className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Reminder: Email Your Saved Letters to the Department</span>
+                </div>
+                <p className="text-slate-700">
+                  Please click <strong>Print</strong> on each letter below and choose <strong>"Save as PDF"</strong>, then email them to:
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 border border-amber-300 rounded text-xs select-all">
+                    lak-ud@utl.gov.in
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText('lak-ud@utl.gov.in');
+                      setCopiedEmail(true);
+                      setTimeout(() => setCopiedEmail(false), 2000);
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded text-[11px] font-semibold text-slate-700 flex items-center gap-1 transition-colors"
+                  >
+                    {copiedEmail ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedEmail ? 'Copied' : 'Copy Email'}</span>
+                  </button>
+                  <a
+                    href={`mailto:lak-ud@utl.gov.in?subject=${encodeURIComponent(`Objection to Draft Lakshadweep TCP Rules 2026 - ${data.submissionId}`)}`}
+                    className="px-2.5 py-1 bg-gov-blue hover:bg-gov-navy text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors shadow-xs"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Compose Email</span>
+                  </a>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between border-b pb-2">
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm sm:text-base">Generated Objection Letters</h3>

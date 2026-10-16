@@ -415,10 +415,15 @@ export async function getSubmissionById(req: Request, res: Response) {
 
     if (subs.length === 0) {
       const [byId]: any = await pool.query(
-        'SELECT * FROM submissions WHERE UPPER(submission_id) = ?',
-        [rawId.toUpperCase()]
+        'SELECT * FROM submissions WHERE UPPER(submission_id) = ? OR UPPER(original_submission_id) = ? ORDER BY id DESC',
+        [rawId.toUpperCase(), rawId.toUpperCase()]
       );
-      subs = byId;
+      if (token && byId.length > 1) {
+        const tokenMatch = byId.filter((s: any) => s.access_token === token);
+        subs = tokenMatch.length > 0 ? tokenMatch : byId;
+      } else {
+        subs = byId;
+      }
     }
 
     if (subs.length === 0) {
@@ -520,19 +525,29 @@ export async function getLetterHtml(req: Request, res: Response) {
   try {
     const { id, letterNumber } = req.params;
 
-    const [subs]: any = await pool.query('SELECT access_token FROM submissions WHERE submission_id = ?', [id]);
+    const [subs]: any = await pool.query(
+      'SELECT access_token, submission_id FROM submissions WHERE submission_id = ? OR original_submission_id = ? ORDER BY id DESC',
+      [id, id]
+    );
     if (subs.length === 0) {
       return res.status(404).send('Submission not found');
     }
+    const token = req.query.token as string;
+    let matchedSub = subs[0];
+    if (token && subs.length > 1) {
+      const m = subs.find((s: any) => s.access_token === token);
+      if (m) matchedSub = m;
+    }
 
     // Require token or admin authorization
-    if (!isAuthorizedForSubmission(req, subs[0].access_token)) {
+    if (!isAuthorizedForSubmission(req, matchedSub.access_token)) {
       return res.status(403).send('Unauthorized to view this objection letter');
     }
 
+    const actualSubId = matchedSub.submission_id;
     const [letters]: any = await pool.query(
       'SELECT final_html, letter_title FROM objection_letters WHERE submission_id = ? AND letter_number = ?',
-      [id, parseInt(String(letterNumber), 10)]
+      [actualSubId, parseInt(String(letterNumber), 10)]
     );
 
     if (letters.length === 0) {
@@ -690,18 +705,28 @@ export async function downloadLetterPdf(req: Request, res: Response) {
     const id = String(req.params.id);
     const letterNumber = parseInt(String(req.params.letterNumber), 10);
 
-    const [subs]: any = await pool.query('SELECT access_token FROM submissions WHERE submission_id = ?', [id]);
+    const [subs]: any = await pool.query(
+      'SELECT access_token, submission_id, full_name FROM submissions WHERE submission_id = ? OR original_submission_id = ? ORDER BY id DESC',
+      [id, id]
+    );
     if (subs.length === 0) {
       return res.status(404).json({ success: false, message: 'Submission not found' });
     }
+    const token = req.query.token as string;
+    let matchedSub = subs[0];
+    if (token && subs.length > 1) {
+      const m = subs.find((s: any) => s.access_token === token);
+      if (m) matchedSub = m;
+    }
 
-    if (!isAuthorizedForSubmission(req, subs[0].access_token)) {
+    if (!isAuthorizedForSubmission(req, matchedSub.access_token)) {
       return res.status(403).json({ success: false, message: 'Unauthorized to download this objection letter' });
     }
 
+    const actualId = matchedSub.submission_id;
     const [letters]: any = await pool.query(
       'SELECT pdf_path, letter_number, final_html, letter_title FROM objection_letters WHERE submission_id = ? AND letter_number = ?',
-      [id, parseInt(String(letterNumber), 10)]
+      [actualId, parseInt(String(letterNumber), 10)]
     );
 
     if (letters.length === 0) {
@@ -712,9 +737,8 @@ export async function downloadLetterPdf(req: Request, res: Response) {
     const hasValidPdfOnDisk = letter.pdf_path && fs.existsSync(letter.pdf_path) && fs.statSync(letter.pdf_path).size > 2000;
 
     const lNum = parseInt(String(letterNumber), 10);
-    const subRows: any = await pool.query('SELECT full_name FROM submissions WHERE submission_id = ?', [id]);
-    const safeName = (subRows[0][0]?.full_name || '').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const defaultFilename = `Objection_Letter_${lNum}_${id}_${safeName}.pdf`;
+    const safeName = (matchedSub.full_name || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const defaultFilename = `Objection_Letter_${lNum}_${actualId}_${safeName}.pdf`;
 
     if (hasValidPdfOnDisk) {
       const filename = letter.pdf_path && fs.existsSync(letter.pdf_path)
@@ -744,20 +768,30 @@ export async function downloadBothLettersZip(req: Request, res: Response) {
   try {
     const id = String(req.params.id);
 
-    const [subs]: any = await pool.query('SELECT access_token FROM submissions WHERE submission_id = ?', [id]);
+    const [subs]: any = await pool.query(
+      'SELECT access_token, submission_id FROM submissions WHERE submission_id = ? OR original_submission_id = ? ORDER BY id DESC',
+      [id, id]
+    );
     if (subs.length === 0) {
       return res.status(404).json({ success: false, message: 'Submission not found' });
     }
+    const token = req.query.token as string;
+    let matchedSub = subs[0];
+    if (token && subs.length > 1) {
+      const m = subs.find((s: any) => s.access_token === token);
+      if (m) matchedSub = m;
+    }
 
-    if (!isAuthorizedForSubmission(req, subs[0].access_token)) {
+    if (!isAuthorizedForSubmission(req, matchedSub.access_token)) {
       return res.status(403).json({ success: false, message: 'Unauthorized to download objection archive' });
     }
 
+    const actualId = matchedSub.submission_id;
     const isServerlessReq = process.env.VERCEL === '1' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
     const pdfDir = isServerlessReq
-      ? path.join(os.tmpdir(), 'pdfs', id)
-      : path.resolve(__dirname, `../../storage/pdfs/${id}`);
-    const zipPath = path.join(pdfDir, `${id}_Objection_Letters.zip`);
+      ? path.join(os.tmpdir(), 'pdfs', actualId)
+      : path.resolve(__dirname, `../../storage/pdfs/${actualId}`);
+    const zipPath = path.join(pdfDir, `${actualId}_Objection_Letters.zip`);
 
     if (!fs.existsSync(pdfDir)) {
       fs.mkdirSync(pdfDir, { recursive: true });
@@ -765,7 +799,7 @@ export async function downloadBothLettersZip(req: Request, res: Response) {
 
     const [letters]: any = await pool.query(
       'SELECT pdf_path, letter_number, letter_title, final_html FROM objection_letters WHERE submission_id = ? ORDER BY letter_number ASC',
-      [id]
+      [actualId]
     );
 
     if (letters.length === 0) {
