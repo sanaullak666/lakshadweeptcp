@@ -6,7 +6,7 @@ import mysql, { Pool as MysqlPool } from 'mysql2/promise';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const DEFAULT_SUPABASE_URL =
-  'postgresql://postgres.ktbltkagspmzwxaoyaha:5mcHBvnk3qG7BVnG@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+  'postgresql://postgres.ktbltkagspmzwxaoyaha:5mcHBvnk3qG7BVnG@aws-0-ap-south-1.pooler.supabase.com:6543/postgres';
 
 function translatePgQuery(sql: string, params: any[] = []): { sql: string; params: any[]; isInsert: boolean } {
   let paramIdx = 1;
@@ -127,11 +127,17 @@ function isFailoverError(err: any): boolean {
 }
 
 // 1. Setup Supabase Primary PostgreSQL Pool
-const connectionString =
+const rawConnectionString =
   process.env.DATABASE_URL ||
   (process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_HOST
-    ? `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || '5432'}/${process.env.DB_NAME || 'postgres'}`
+    ? `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || '6543'}/${process.env.DB_NAME || 'postgres'}`
     : DEFAULT_SUPABASE_URL);
+
+// Automatically normalize Supabase Pooler to port 6543 (Transaction Mode)
+// to prevent EMAXCONNSESSION (max clients: 15 in Session Mode)
+const connectionString = rawConnectionString.includes('pooler.supabase.com')
+  ? rawConnectionString.replace(':5432', ':6543')
+  : rawConnectionString;
 
 const pgPool = new PgPool({
   connectionString,
