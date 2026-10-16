@@ -153,14 +153,19 @@ export const AdminDashboardPage: React.FC = () => {
 
           <div className="space-y-3 max-h-72 overflow-y-auto">
             {stats.timeline && stats.timeline.length > 0 ? (
-              stats.timeline.map((t, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-xs">
-                  <span className="font-mono text-slate-600">{new Date(t.date).toLocaleDateString('en-GB')}</span>
-                  <span className="font-bold text-gov-blue bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
-                    {t.count} Submissions
-                  </span>
-                </div>
-              ))
+              stats.timeline.map((t, idx) => {
+                const dateClean = String(t.date || '').split('T')[0];
+                const parts = dateClean.split('-');
+                const displayDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateClean;
+                return (
+                  <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-xs">
+                    <span className="font-mono text-slate-600">{displayDate}</span>
+                    <span className="font-bold text-gov-blue bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
+                      {t.count} Submissions
+                    </span>
+                  </div>
+                );
+              })
             ) : (
               <p className="text-xs text-slate-400 italic py-4 text-center">No timeline activity to display.</p>
             )}

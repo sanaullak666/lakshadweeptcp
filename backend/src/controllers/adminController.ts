@@ -140,12 +140,28 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
         today,
         thisWeek,
         thisMonth,
-        statusCounts: statusCounts.reduce((acc: any, cur: any) => {
-          acc[cur.status] = cur.count;
+        statusCounts: (statusCounts || []).reduce((acc: any, cur: any) => {
+          if (cur && cur.status) acc[cur.status] = Number(cur.count) || 0;
           return acc;
         }, { Submitted: 0, 'Under Review': 0, Reviewed: 0, Forwarded: 0, Rejected: 0 }),
-        islandCounts,
-        timeline
+        islandCounts: (islandCounts || []).map((cur: any) => ({
+          island: String(cur.island || '').trim(),
+          count: Number(cur.count) || 0
+        })),
+        timeline: (timeline || []).map((cur: any) => {
+          let dateStr = '';
+          if (cur.date instanceof Date) {
+            dateStr = cur.date.toISOString().split('T')[0];
+          } else if (typeof cur.date === 'string') {
+            dateStr = cur.date.split('T')[0];
+          } else {
+            dateStr = String(cur.date || '');
+          }
+          return {
+            date: dateStr,
+            count: Number(cur.count) || 0
+          };
+        })
       }
     });
 

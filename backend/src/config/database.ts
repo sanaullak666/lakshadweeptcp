@@ -257,28 +257,111 @@ export const pool: UniversalPool = {
       return [[], []];
     }
 
-    // Special Case 2: Aggregate Count Query on submissions
+    // Special Case 2: Aggregate Count Query on submissions (with or without GROUP BY)
     if (
       /COUNT\s*\(/i.test(sql) &&
       /FROM\s+submissions/i.test(sql) &&
-      !/GROUP\s+BY/i.test(sql) &&
       tidbPool
     ) {
-      try {
-        const [pgRows] = await queryPg(sql, params);
-        const [tidbRows] = await queryTiDB(sql, params);
+      const hasGroupBy = /GROUP\s+BY/i.test(sql);
 
-        if (pgRows && pgRows.length > 0 && tidbRows && tidbRows.length > 0) {
-          const combined = { ...pgRows[0] };
-          for (const k of Object.keys(combined)) {
-            const val1 = Number(pgRows[0][k]) || 0;
-            const val2 = Number(tidbRows[0][k]) || 0;
-            combined[k] = val1 + val2;
+      if (!hasGroupBy) {
+        // Non-grouped count query (e.g. Total, Today, This Week, This Month)
+        try {
+          let pgRow: any = null;
+          let tidbRow: any = null;
+
+          try {
+            const [pgRes] = await queryPg(sql, params);
+            if (pgRes && pgRes.length > 0) pgRow = pgRes[0];
+          } catch (e) { /* ignore */ }
+
+          try {
+            const [tidbRes] = await queryTiDB(sql, params);
+            if (tidbRes && tidbRes.length > 0) tidbRow = tidbRes[0];
+          } catch (e) { /* ignore */ }
+
+          if (pgRow || tidbRow) {
+            const base = pgRow || tidbRow;
+            const combined: any = { ...base };
+            for (const k of Object.keys(combined)) {
+              const val1 = pgRow ? Number(pgRow[k]) || 0 : 0;
+              const val2 = tidbRow ? Number(tidbRow[k]) || 0 : 0;
+              combined[k] = val1 + val2;
+            }
+            return [[combined], []];
           }
-          return [[combined], []];
+        } catch (err: any) {
+          // If aggregation fails, fall back to default execution below
         }
-      } catch (err: any) {
-        // If aggregation fails, fall back to default execution below
+      } else {
+        // Grouped count query (e.g. Submissions by Island, Status distribution, Submission Trend)
+        try {
+          let pgRows: any[] = [];
+          let tidbRows: any[] = [];
+
+          try {
+            const [pgRes] = await queryPg(sql, params);
+            if (Array.isArray(pgRes)) pgRows = pgRes;
+          } catch (e) { /* ignore */ }
+
+          try {
+            const [tidbRes] = await queryTiDB(sql, params);
+            if (Array.isArray(tidbRes)) tidbRows = tidbRes;
+          } catch (e) { /* ignore */ }
+
+          if (pgRows.length > 0 || tidbRows.length > 0) {
+            const sample = pgRows[0] || tidbRows[0] || {};
+            const keys = Object.keys(sample).filter(k => k.toLowerCase() !== 'count');
+            const groupKey = keys[0] || 'group';
+
+            const map = new Map<string, { rawKey: any; count: number }>();
+
+            const addRow = (row: any) => {
+              if (!row) return;
+              const rawVal = row[groupKey];
+              let normKey: string;
+              let displayVal = rawVal;
+
+              if (rawVal instanceof Date) {
+                normKey = rawVal.toISOString().split('T')[0];
+                displayVal = normKey;
+              } else if (typeof rawVal === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rawVal)) {
+                normKey = rawVal.substring(0, 10);
+                displayVal = normKey;
+              } else {
+                normKey = String(rawVal || '').trim().toLowerCase();
+              }
+
+              const existing = map.get(normKey);
+              const countVal = Number(row.count) || 0;
+              if (existing) {
+                existing.count += countVal;
+              } else {
+                map.set(normKey, { rawKey: displayVal, count: countVal });
+              }
+            };
+
+            pgRows.forEach(addRow);
+            tidbRows.forEach(addRow);
+
+            let combinedRows = Array.from(map.values()).map(item => ({
+              [groupKey]: item.rawKey,
+              count: item.count
+            }));
+
+            // Preserve query sorting
+            if (/ORDER\s+BY\s+count\s+DESC/i.test(sql)) {
+              combinedRows.sort((a, b) => b.count - a.count);
+            } else if (/ORDER\s+BY\s+date\s+ASC/i.test(sql) || /ORDER\s+BY\s+.*ASC/i.test(sql)) {
+              combinedRows.sort((a, b) => String(a[groupKey]).localeCompare(String(b[groupKey])));
+            }
+
+            return [combinedRows, []];
+          }
+        } catch (err: any) {
+          // If aggregation fails, fall back to default execution below
+        }
       }
     }
 
