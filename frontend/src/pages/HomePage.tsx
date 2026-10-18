@@ -1,9 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, ArrowRight, Shield, CheckCircle, Scale, Building2, UserCog, Calendar, MapPin, Download } from 'lucide-react';
+import { FileText, ArrowRight, Shield, CheckCircle, Scale, Building2, UserCog, Calendar, MapPin, Download, Lock } from 'lucide-react';
 import { ISLANDS_LIST } from '../types';
+import { getPublicSettings } from '../services/api';
 
 export const HomePage: React.FC = () => {
+  const [isRegOpen, setIsRegOpen] = useState<boolean>(true);
+
+  useEffect(() => {
+    getPublicSettings()
+      .then(settings => {
+        if (settings.registration_open === 'false') {
+          setIsRegOpen(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-12 pb-16">
       {/* Hero Banner */}
@@ -48,13 +61,23 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <Link
-              to="/submit"
-              className="px-6 py-3.5 bg-gov-gold hover:bg-yellow-400 text-slate-950 font-bold rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-sm sm:text-base group"
-            >
-              <span>Submit Your Objections</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
+            {isRegOpen ? (
+              <Link
+                to="/submit"
+                className="px-6 py-3.5 bg-gov-gold hover:bg-yellow-400 text-slate-950 font-bold rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-sm sm:text-base group"
+              >
+                <span>Submit Your Objections</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            ) : (
+              <Link
+                to="/submit"
+                className="px-6 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-lg transition-all flex items-center gap-2 text-sm sm:text-base"
+              >
+                <Lock className="w-4 h-4" />
+                <span>Registration Closed</span>
+              </Link>
+            )}
 
             <Link
               to="/track"

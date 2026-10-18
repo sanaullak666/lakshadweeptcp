@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle,
-  Eye
+  Eye,
+  Lock
 } from 'lucide-react';
 import { SignatureCapture } from '../components/SignatureCapture';
 import { ApplicantFormData, ISLANDS_LIST, IslandType, RelationshipType } from '../types';
@@ -60,6 +61,7 @@ export const SubmitPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string>('');
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState<boolean>(false);
   const [duplicateInfo, setDuplicateInfo] = useState<{ exists: boolean; field?: 'phone' | 'email'; message?: string; submissionId?: string } | null>(null);
+  const [isRegistrationOpen, setIsRegistrationOpen] = useState<boolean>(true);
 
   // Generate unique idempotency key once on component load
   useEffect(() => {
@@ -71,6 +73,9 @@ export const SubmitPage: React.FC = () => {
       .then(settings => {
         if (settings.allow_manual_date_edit === 'false') {
           setAllowManualDate(false);
+        }
+        if (settings.registration_open === 'false') {
+          setIsRegistrationOpen(false);
         }
       })
       .catch(() => {});
@@ -196,6 +201,8 @@ export const SubmitPage: React.FC = () => {
   };
 
   const handleNext = async () => {
+    if (!isRegistrationOpen) return;
+
     if (currentStep === 1) {
       if (!validateStep1()) return;
 
@@ -239,6 +246,10 @@ export const SubmitPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isRegistrationOpen) {
+      setSubmitError('Registration is closed. New submissions are not accepted.');
+      return;
+    }
     if (!confirmedDeclaration) {
       setSubmitError('Please confirm the declaration checkbox before submitting.');
       return;
@@ -279,6 +290,31 @@ export const SubmitPage: React.FC = () => {
             Your submission will automatically generate Objection Letters 1, 2, and 3.
           </div>
         </div>
+
+        {/* Registration Closed Notice Banner */}
+        {!isRegistrationOpen && (
+          <div className="mt-4 p-4 sm:p-5 bg-red-50 border-2 border-red-300 rounded-xl text-slate-900 shadow-xs">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+              <div className="space-y-1.5">
+                <h2 className="text-base font-bold text-red-900">
+                  Registration is Closed
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                  Public registration for submitting objections to the Draft Lakshadweep Town and Country Planning Rules, 2026 is currently closed. New submissions are no longer accepted.
+                </p>
+                <div className="pt-1.5 flex flex-wrap items-center gap-2">
+                  <Link
+                    to="/track"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-gov-blue hover:text-blue-800 bg-white px-3.5 py-2 rounded-lg border border-slate-300 hover:border-gov-blue transition-colors shadow-xs"
+                  >
+                    <span>Track Your Existing Submission & Download Letters →</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Step Indicator */}
         <div className="grid grid-cols-4 gap-2 pt-6">
@@ -883,19 +919,33 @@ export const SubmitPage: React.FC = () => {
             <button
               type="button"
               onClick={handleNext}
-              className="px-6 py-2.5 bg-gov-blue hover:bg-gov-navy text-white text-xs sm:text-sm font-semibold rounded-lg flex items-center gap-1.5 transition-colors shadow"
+              disabled={!isRegistrationOpen}
+              className={`px-6 py-2.5 text-xs sm:text-sm font-semibold rounded-lg flex items-center gap-1.5 transition-colors shadow ${
+                !isRegistrationOpen
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-gov-blue hover:bg-gov-navy text-white'
+              }`}
             >
-              <span>Continue</span>
+              <span>{!isRegistrationOpen ? 'Registration Closed' : 'Continue'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isSubmitting || !confirmedDeclaration}
-              className="px-8 py-3 bg-gov-emerald hover:bg-emerald-700 text-white text-sm sm:text-base font-bold rounded-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting || !confirmedDeclaration || !isRegistrationOpen}
+              className={`px-8 py-3 text-sm sm:text-base font-bold rounded-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+                !isRegistrationOpen
+                  ? 'bg-slate-400 text-white cursor-not-allowed'
+                  : 'bg-gov-emerald hover:bg-emerald-700 text-white'
+              }`}
             >
-              {isSubmitting ? (
+              {!isRegistrationOpen ? (
+                <>
+                  <Lock className="w-5 h-5" />
+                  <span>Registration Closed</span>
+                </>
+              ) : isSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>Submitting & Generating 3 Letters...</span>

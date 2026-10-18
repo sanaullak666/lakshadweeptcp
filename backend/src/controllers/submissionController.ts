@@ -15,6 +15,22 @@ export async function createSubmission(req: Request, res: Response) {
   let normalizedEmail = '';
 
   try {
+    // Check if registration is open
+    const [settingsRows]: any = await pool.query(
+      "SELECT setting_value FROM app_settings WHERE setting_key = 'registration_open'"
+    );
+    const isRegistrationOpen = !settingsRows || settingsRows.length === 0 || settingsRows[0].setting_value !== 'false';
+    if (!isRegistrationOpen) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+      return res.status(403).json({
+        success: false,
+        code: 'REGISTRATION_CLOSED',
+        message: 'Registration is closed. New submissions are not accepted.'
+      });
+    }
+
     const {
       fullName,
       relationship,

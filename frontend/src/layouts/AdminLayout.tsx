@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,11 +10,20 @@ import {
   Shield,
   Download
 } from 'lucide-react';
-import { adminLogout, getExportCsvUrl } from '../services/api';
+import { adminLogout, getExportCsvUrl, getPublicSettings } from '../services/api';
 
 export const AdminLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isRegOpen, setIsRegOpen] = useState<boolean>(true);
+
+  useEffect(() => {
+    getPublicSettings()
+      .then(settings => {
+        setIsRegOpen(settings.registration_open !== 'false');
+      })
+      .catch(() => {});
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     await adminLogout();
@@ -40,6 +49,17 @@ export const AdminLayout: React.FC = () => {
             </div>
             <span className="bg-gov-navy text-white text-[11px] font-bold px-2 py-0.5 rounded">
               ADMIN CONSOLE
+            </span>
+            <span
+              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
+                isRegOpen
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : 'bg-red-100 text-red-800 border border-red-300'
+              }`}
+              title={isRegOpen ? 'Public submissions are OPEN' : 'Public submissions are CLOSED'}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isRegOpen ? 'bg-emerald-600 animate-pulse' : 'bg-red-600'}`} />
+              <span>{isRegOpen ? 'Reg: OPEN' : 'Reg: CLOSED'}</span>
             </span>
             <span className="text-xs text-slate-500 hidden sm:inline">
               Lakshadweep Students Association Central Committee

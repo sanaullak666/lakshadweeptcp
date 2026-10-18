@@ -295,6 +295,14 @@ export async function initializeDatabase() {
       `, ['maintenance_mode', 'false', 'Disable public submissions']);
     }
 
+    const [regSetting]: any = await connection.query('SELECT setting_key FROM app_settings WHERE setting_key = ?', ['registration_open']);
+    if (!regSetting || regSetting.length === 0) {
+      await connection.query(`
+        INSERT INTO app_settings (setting_key, setting_value, description)
+        VALUES (?, ?, ?)
+      `, ['registration_open', 'true', 'Enable or disable public objection submissions']);
+    }
+
     // Seed default admin if not exists
     const [existingAdmins]: any = await connection.query('SELECT id FROM admins WHERE username = ? OR email = ?', ['lakstudentsassociation@gmail.com', 'lakstudentsassociation@gmail.com']);
     if (!existingAdmins || existingAdmins.length === 0) {

@@ -546,10 +546,22 @@ export async function updateAppSetting(req: AuthenticatedRequest, res: Response)
       return res.status(400).json({ success: false, message: 'Setting key is required' });
     }
 
-    await pool.query(
-      'INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
-      [key, String(value), String(value)]
+    const [existing]: any = await pool.query(
+      'SELECT setting_key FROM app_settings WHERE setting_key = ?',
+      [key]
     );
+
+    if (existing && existing.length > 0) {
+      await pool.query(
+        'UPDATE app_settings SET setting_value = ?, updated_at = CURRENT_TIMESTAMP WHERE setting_key = ?',
+        [String(value), key]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?)',
+        [key, String(value)]
+      );
+    }
 
     await logAudit({
       adminUsername: req.admin?.username,
@@ -560,6 +572,7 @@ export async function updateAppSetting(req: AuthenticatedRequest, res: Response)
 
     return res.status(200).json({ success: true, message: `Setting ${key} updated successfully` });
   } catch (err: any) {
+    console.error('[updateAppSetting error]:', err);
     return res.status(500).json({ success: false, message: 'Failed to update setting' });
   }
 }

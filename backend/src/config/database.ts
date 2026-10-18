@@ -23,7 +23,11 @@ function translatePgQuery(sql: string, params: any[] = []): { sql: string; param
 
   const isInsert = /^\s*INSERT\s+INTO\s+/i.test(translatedSql);
   if (isInsert && !/RETURNING\s+/i.test(translatedSql)) {
-    translatedSql += ' RETURNING id';
+    if (/INSERT\s+INTO\s+app_settings/i.test(translatedSql)) {
+      translatedSql += ' RETURNING setting_key';
+    } else {
+      translatedSql += ' RETURNING id';
+    }
   }
 
   return { sql: translatedSql, params, isInsert };
